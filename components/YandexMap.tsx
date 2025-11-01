@@ -8,13 +8,7 @@ import {
   SearchControl,
 } from '@pbe/react-yandex-maps'
 
-type Marker = {
-  id?: string | number
-  lat: number
-  lng: number
-  title?: string
-  hint?: string
-}
+type Marker = { id?: string | number; lat: number; lng: number; title?: string; hint?: string }
 
 type Props = {
   center: [number, number]
@@ -24,7 +18,7 @@ type Props = {
   className?: string
   onBoundsChange?: (bounds: number[][], center: [number, number], zoom: number) => void
   onClick?: (coords: [number, number]) => void
-  /** стиль всех меток на карте */
+  draggableMarker?: boolean
   markerOptions?: Record<string, any>
   height?: number
 }
@@ -37,6 +31,7 @@ export default function YandexMap({
   markers = [],
   onBoundsChange,
   onClick,
+  draggableMarker = false,
   markerOptions,
   height = 360,
 }: Props) {
@@ -65,14 +60,24 @@ export default function YandexMap({
           <ZoomControl options={{ position: { right: 10, top: 10 } }} />
           <GeolocationControl options={{ position: { right: 10, top: 60 } }} />
           {showSearch && <SearchControl options={{ position: { left: 10, top: 10 } }} />}
-          {markers.map((m) => (
+          {markers.map((m, idx) => (
             <Placemark
-              key={m.id ?? `${m.lat}-${m.lng}`}
+              key={m.id ?? `${m.lat}-${m.lng}-${idx}`}
               geometry={[m.lat, m.lng]}
-              options={markerOptions}
+              options={{
+                preset: 'islands#dotIcon',
+                iconColor: '#22C55E',
+                draggable: draggableMarker,
+                ...markerOptions,
+              }}
               properties={{
                 balloonContent: m.title ?? '',
                 hintContent: m.hint ?? m.title ?? '',
+              }}
+              onDragEnd={(e: any) => {
+                if (!draggableMarker || !onClick) return
+                const coords = e.get('target')?.geometry?.getCoordinates?.() as [number, number]
+                if (coords) onClick(coords) // используем тот же колбэк, что и клик
               }}
             />
           ))}
