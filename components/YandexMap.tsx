@@ -1,7 +1,20 @@
 'use client'
-import { YMaps, Map, Placemark, ZoomControl, GeolocationControl, SearchControl } from '@pbe/react-yandex-maps'
+import {
+  YMaps,
+  Map,
+  Placemark,
+  ZoomControl,
+  GeolocationControl,
+  SearchControl,
+} from '@pbe/react-yandex-maps'
 
-type Marker = { id?: string | number; lat: number; lng: number; title?: string; hint?: string }
+type Marker = {
+  id?: string | number
+  lat: number
+  lng: number
+  title?: string
+  hint?: string
+}
 
 type Props = {
   center: [number, number]
@@ -10,6 +23,10 @@ type Props = {
   markers?: Marker[]
   className?: string
   onBoundsChange?: (bounds: number[][], center: [number, number], zoom: number) => void
+  onClick?: (coords: [number, number]) => void
+  /** стиль всех меток на карте */
+  markerOptions?: Record<string, any>
+  height?: number
 }
 
 export default function YandexMap({
@@ -19,10 +36,13 @@ export default function YandexMap({
   showSearch = false,
   markers = [],
   onBoundsChange,
+  onClick,
+  markerOptions,
+  height = 360,
 }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_YANDEX_API_KEY
   return (
-    <div className={`w-full h-[360px] rounded-xl border overflow-hidden ${className ?? ''}`}>
+    <div className={`w-full rounded-xl border overflow-hidden ${className ?? ''}`} style={{ height }}>
       <YMaps query={{ apikey: apiKey || undefined, load: 'package.full' }}>
         <Map
           state={{ center, zoom }}
@@ -36,6 +56,11 @@ export default function YandexMap({
             const z = (map.getZoom?.() as number) ?? zoom
             onBoundsChange(b, c, z)
           }}
+          onClick={(e: any) => {
+            if (!onClick) return
+            const coords = e.get('coords') as [number, number]
+            onClick(coords)
+          }}
         >
           <ZoomControl options={{ position: { right: 10, top: 10 } }} />
           <GeolocationControl options={{ position: { right: 10, top: 60 } }} />
@@ -44,7 +69,11 @@ export default function YandexMap({
             <Placemark
               key={m.id ?? `${m.lat}-${m.lng}`}
               geometry={[m.lat, m.lng]}
-              properties={{ balloonContent: m.title ?? '', hintContent: m.hint ?? m.title ?? '' }}
+              options={markerOptions}
+              properties={{
+                balloonContent: m.title ?? '',
+                hintContent: m.hint ?? m.title ?? '',
+              }}
             />
           ))}
         </Map>
