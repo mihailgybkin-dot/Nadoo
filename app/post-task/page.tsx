@@ -1,23 +1,11 @@
-"use client";
-
-import Header from "../../components/Header";
-import YandexAddressPicker from "../../components/YandexAddressPicker";
+// app/post-task/page.tsx
+'use client';
 
 export default function PostTaskPage() {
   return (
-    <>
-      <Header />
-      <div className="container section">
-        <h1 className="h2">Разместить задание</h1>
-        <div className="card">
-          <form className="form">
-            <input className="input" placeholder="Заголовок задания" />
-            <input className="input" placeholder="Бюджет (₽)" type="number" />
-            <YandexAddressPicker />
-            <button className="btn btn--primary" type="button">Создать задание</button>
-          </form>
-        </div>
-      </div>
-    </>
+    <section className="container pb-20 pt-10">
+      <h1 className="mb-2 text-2xl font-semibold">Разместить задание</h1>
+      <p className="text-neutral-600">Здесь будет форма создания задания.</p>
+    </section>
   );
 }
