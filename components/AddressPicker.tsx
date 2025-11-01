@@ -36,7 +36,7 @@ export default function AddressPicker({
     return () => suggest?.destroy?.()
   }, [inputId, onPick])
 
-  // Нажали Enter — геокодим введённый текст
+  // Enter — геокодим введённое
   const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = async (e) => {
     if (e.key !== 'Enter') return
     const v = (e.target as HTMLInputElement).value.trim()
