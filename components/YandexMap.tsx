@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
 import {
   YMaps,
   Map,
-  Placemark,
-  GeolocationControl,
+  SearchControl,
   ZoomControl,
-  SearchControl
+  GeolocationControl,
+  Placemark,
 } from "@pbe/react-yandex-maps";
+import { useCallback, useRef, useState } from "react";
 
 type BBox = {
   sw_lat: number;
@@ -17,115 +17,79 @@ type BBox = {
   ne_lng: number;
 };
 
+type Marker = { lat: number; lng: number; id?: string };
+
 type Props = {
-  center?: [number, number];
-  zoom?: number;
   className?: string;
+  showSearch?: boolean;
+  markers?: Marker[];
   onBoundsChange?: (bbox: BBox) => void;
   onPlacePicked?: (p: { address?: string; lat: number; lng: number }) => void;
-  showSearch?: boolean;
 };
 
-export const YandexMap: React.FC<Props> = ({
-  center = [55.7558, 37.6173],
-  zoom = 10,
+export default function YandexMap({
   className,
+  showSearch = false,
+  markers = [],
   onBoundsChange,
   onPlacePicked,
-  showSearch = true
-}) => {
-  const [point, setPoint] = useState<[number, number] | null>(null);
+}: Props) {
+  const [center, setCenter] = useState<[number, number]>([55.7558, 37.6173]);
+  const mapRef = useRef<any>(null);
 
-  const mapState = useMemo(
-    () => ({ center, zoom, controls: [] as string[] }),
-    [center, zoom]
-  );
+  const emitBounds = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const bounds = map.getBounds();
+    if (!bounds) return;
+    const [[sw_lat, sw_lng], [ne_lat, ne_lng]] = bounds;
+    onBoundsChange?.({ sw_lat, sw_lng, ne_lat, ne_lng });
+  }, [onBoundsChange]);
 
-  const handleClick = useCallback(
+  const handleSearchSelect = useCallback(
     (e: any) => {
-      const coords = e.get("coords") as [number, number];
-      setPoint(coords);
-      onPlacePicked?.({ lat: coords[0], lng: coords[1] });
+      const result = e.get("result");
+      if (!result) return;
+      const coords = result.geometry.getCoordinates();
+      const address = result.properties.get("name");
+      setCenter([coords[0] as number, coords[1] as number]);
+      onPlacePicked?.({ address, lat: coords[0], lng: coords[1] });
+      // Обновим bbox после перелёта карты
+      setTimeout(() => emitBounds(), 300);
     },
-    [onPlacePicked]
-  );
-
-  const handleBounds = useCallback(
-    (ymap: any) => {
-      try {
-        const b = ymap.getBounds(); // [[swLat, swLng],[neLat, neLng]]
-        if (b && onBoundsChange) {
-          onBoundsChange({
-            sw_lat: b[0][0],
-            sw_lng: b[0][1],
-            ne_lat: b[1][0],
-            ne_lng: b[1][1]
-          });
-        }
-      } catch {
-        // ignore
-      }
-    },
-    [onBoundsChange]
-  );
-
-  const onSearchLoad = useCallback(
-    (mapInstance: any) => {
-      if (!showSearch || !mapInstance) return;
-      try {
-        const searchControl = mapInstance.controls.get("searchControl");
-        // при показе результата поиска:
-        searchControl?.events.add("resultshow", (e: any) => {
-          const index = e.get("index");
-          const result = searchControl.getResultsArray()?.[index];
-          if (!result) return;
-          const coords = result.geometry.getCoordinates();
-          const address = result.properties.get("text");
-          setPoint(coords);
-          onPlacePicked?.({ address, lat: coords[0], lng: coords[1] });
-        });
-      } catch {
-        // ignore
-      }
-    },
-    [onPlacePicked, showSearch]
+    [emitBounds, onPlacePicked]
   );
 
   return (
-    <div className={className}>
-      <YMaps
-        query={{
-          // если нужен API-ключ:
-          // apikey: process.env.NEXT_PUBLIC_YANDEX_MAPS_KEY,
-          lang: "ru_RU",
-          coordorder: "latlong",
-          load: "package.full"
-        }}
+    <YMaps query={{ apikey: process.env.NEXT_PUBLIC_YANDEX_MAPS_KEY }}>
+      <Map
+        defaultState={{ center, zoom: 10 }}
+        state={{ center, zoom: 10 }}
+        instanceRef={(ref) => (mapRef.current = ref)}
+        onBoundsChange={emitBounds}
+        width="100%"
+        height="100%"
+        className={className}
+        modules={[
+          "control.SearchControl",
+          "control.ZoomControl",
+          "control.GeolocationControl",
+        ]}
       >
-        <Map
-          defaultState={mapState}
-          state={mapState}
-          onClick={handleClick}
-          onLoad={onSearchLoad}
-          onActionEnd={(e: any) => handleBounds(e.get("target"))}
-          instanceRef={(m: any) => m && handleBounds(m)}
-          width="100%"
-          height="100%"
-          modules={[
-            "control.SearchControl",
-            "control.ZoomControl",
-            "control.GeolocationControl"
-          ]}
-          options={{ suppressMapOpenBlock: true }}
-        >
-          <ZoomControl />
-          <GeolocationControl />
-          {showSearch && <SearchControl options={{ float: "left" }} />}
-          {point && <Placemark geometry={point} />}
-        </Map>
-      </YMaps>
-    </div>
+        {showSearch && (
+          <SearchControl
+            options={{ float: "right", noPlacemark: true, placeholderContent: "Адрес или объект" }}
+            instanceRef={(ref: any) => {
+              if (ref) ref.events.add("resultshow", handleSearchSelect);
+            }}
+          />
+        )}
+        <ZoomControl options={{ float: "left" }} />
+        <GeolocationControl options={{ float: "left" }} />
+        {markers.map((m) => (
+          <Placemark key={m.id ?? `${m.lat}-${m.lng}`} geometry={[m.lat, m.lng]} />
+        ))}
+      </Map>
+    </YMaps>
   );
-};
-
-export default YandexMap;
+}
