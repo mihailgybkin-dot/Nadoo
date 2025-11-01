@@ -1,8 +1,7 @@
 'use client'
-import { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 type PickResult = { address: string; full?: string; lat: number; lng: number }
-
 type Props = {
   value?: string
   placeholder?: string
@@ -10,32 +9,7 @@ type Props = {
   onPick?: (r: PickResult) => void
 }
 
-declare global { interface Window { ymaps?: any } }
-
-function ensureYmapsLoaded(apiKey?: string) {
-  if (typeof window === 'undefined') return Promise.resolve(undefined)
-  if (window.ymaps?.ready) {
-    return new Promise((res) => window.ymaps.ready(() => res(window.ymaps)))
-  }
-  return new Promise((resolve) => {
-    const id = 'yandex-maps-api'
-    if (!document.getElementById(id)) {
-      const s = document.createElement('script')
-      s.id = id
-      const qs = new URLSearchParams({
-        lang: 'ru_RU',
-        load: 'package.full',
-        apikey: apiKey ?? ''
-      })
-      s.src = `https://api-maps.yandex.ru/2.1/?${qs.toString()}`
-      s.async = true
-      s.onload = () => window.ymaps?.ready(() => resolve(window.ymaps))
-      document.head.appendChild(s)
-    } else {
-      window.ymaps?.ready(() => resolve(window.ymaps))
-    }
-  })
-}
+type Suggest = { id: string; label: string; full: string; lat: number; lng: number }
 
 export default function AddressPicker({
   value = '',
@@ -43,63 +17,89 @@ export default function AddressPicker({
   onPick,
   placeholder = 'Адрес или объект',
 }: Props) {
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<Suggest[]>([])
+  const [hover, setHover] = useState(-1)
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const apiKey = process.env.NEXT_PUBLIC_YANDEX_API_KEY || ''
   const inputId = useMemo(() => `addr-${Math.random().toString(36).slice(2)}`, [])
 
-  // Подключаем SuggestView Яндекса к нашему инпуту
+  // Загружаем «подсказки» через HTTP геокодер Яндекса по мере набора
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_YANDEX_API_KEY
-    let suggest: any
-    let sub: any
-
-    ensureYmapsLoaded(apiKey).then(async (ymaps: any) => {
-      const el = document.getElementById(inputId)
-      if (!ymaps || !el || !ymaps.SuggestView) return
-
-      suggest = new ymaps.SuggestView(inputId, { results: 8 })
-      sub = suggest.events.add('select', async (e: any) => {
-        const text = e.get('item')?.value as string
-        if (!text) return
-        try {
-          const res = await ymaps.geocode(text)
-          const obj = res.geoObjects.get(0)
-          const coords = obj?.geometry?.getCoordinates?.() as [number, number] | undefined
-          if (coords) {
-            onPick?.({ address: text, full: text, lat: coords[0], lng: coords[1] })
-          }
-        } catch {}
-      })
-    })
-
-    return () => {
-      try { sub?.remove?.() } catch {}
-      try { suggest?.destroy?.() } catch {}
+    const q = (value || '').trim()
+    if (q.length < 3) {
+      setItems([]); setOpen(false); return
     }
-  }, [inputId, onPick])
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const url =
+          `https://geocode-maps.yandex.ru/1.x/?apikey=${apiKey}&format=json&` +
+          `geocode=${encodeURIComponent(q)}&results=7`
+        const j = await fetch(url).then(r => r.json())
+        const fm = j?.response?.GeoObjectCollection?.featureMember ?? []
+        const next: Suggest[] = fm.map((it: any, i: number) => {
+          const g = it.GeoObject
+          const pos: string = g?.Point?.pos ?? ''
+          const [lngStr, latStr] = pos.split(' ')
+          const lat = Number(latStr); const lng = Number(lngStr)
+          const full: string = g?.metaDataProperty?.GeocoderMetaData?.text || ''
+          const name = g?.name || full
+          const desc = g?.description || ''
+          const label = desc ? `${name} — ${desc}` : name
+          return { id: `${i}-${pos}`, label, full, lat, lng }
+        }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng))
+        setItems(next); setOpen(next.length > 0); setHover(-1)
+      } catch {
+        setItems([]); setOpen(false)
+      }
+    }, 180)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [value, apiKey])
 
-  // ENTER = геокодим введённое
-  const handleEnter: React.KeyboardEventHandler<HTMLInputElement> = async (e) => {
-    if (e.key !== 'Enter') return
-    const text = (e.currentTarget.value || '').trim()
-    if (!text) return
-    const ymaps = window.ymaps
-    if (!ymaps?.geocode) return
-    try {
-      const res = await ymaps.geocode(text)
-      const obj = res.geoObjects.get(0)
-      const coords = obj?.geometry?.getCoordinates?.() as [number, number] | undefined
-      if (coords) onPick?.({ address: text, full: text, lat: coords[0], lng: coords[1] })
-    } catch {}
+  // Клик вне — закрыть список
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!boxRef.current) return
+      if (!boxRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  const choose = (s: Suggest) => {
+    setOpen(false)
+    onPick?.({ address: s.full, full: s.full, lat: s.lat, lng: s.lng })
+  }
+
+  // Enter/стрелки/escape
+  const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = async (e) => {
+    if (open && items.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHover(h => Math.min(items.length - 1, h + 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setHover(h => Math.max(0, h - 1)); return }
+      if (e.key === 'Enter')     { e.preventDefault(); choose(items[hover >= 0 ? hover : 0]); return }
+      if (e.key === 'Escape')    { setOpen(false); return }
+    }
+    // Если список закрыт — берём первый результат геокодера по введённому адресу
+    if (e.key === 'Enter' && (value || '').trim()) {
+      e.preventDefault()
+      try {
+        const url =
+          `https://geocode-maps.yandex.ru/1.x/?apikey=${apiKey}&format=json&` +
+          `geocode=${encodeURIComponent((value || '').trim())}&results=1`
+        const j = await fetch(url).then(r => r.json())
+        const go = j?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject
+        const pos: string | undefined = go?.Point?.pos
+        if (pos) {
+          const [lngStr, latStr] = pos.split(' ')
+          const lat = Number(latStr); const lng = Number(lngStr)
+          const full = go?.metaDataProperty?.GeocoderMetaData?.text || (value || '').trim()
+          onPick?.({ address: full, full, lat, lng })
+        }
+      } catch {}
+    }
   }
 
   return (
-    <input
-      id={inputId}
-      value={value}
-      onChange={(e) => onChange?.(e.target.value)}
-      onKeyDown={handleEnter}
-      placeholder={placeholder}
-      autoComplete="off"
-      className="w-full rounded-lg border px-3 py-2 outline-none focus:ring focus:ring-blue-200"
-    />
-  )
-}
+    <div
