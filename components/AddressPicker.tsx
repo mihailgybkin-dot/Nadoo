@@ -1,67 +1,64 @@
-// components/AddressPicker.tsx
-'use client';
+'use client'
+const inputId = useMemo(() => `addr-${Math.random().toString(36).slice(2)}`,[ ])
 
-import { useEffect, useRef } from 'react';
 
-type Props = {
-  value?: string;
-  placeholder?: string;
-  onChange?: (text: string) => void;
-  onPick?: (result: { address: string; lat: number; lng: number }) => void;
-};
+// Вешаем SuggestView, если доступен ymaps
+useEffect(() => {
+const ymaps = window.ymaps
+const el = document.getElementById(inputId)
+if (!ymaps || !el || !ymaps.SuggestView) return
+const suggest = new ymaps.SuggestView(inputId, { results: 7 })
+suggest.events.add('select', async (e: any) => {
+const v = e.get('item')?.value as string
+if (!v) return
+try {
+const res = await ymaps.geocode(v)
+const first = res.geoObjects.get(0)
+if (!first) return
+const c = first.geometry.getCoordinates() as [number, number]
+onPick?.({ address: v, lat: c[0], lng: c[1] })
+} catch {}
+})
+return () => suggest?.destroy?.()
+}, [inputId, onPick])
 
-export default function AddressPicker({ value = '', onChange, onPick, placeholder = 'Адрес или объект' }: Props) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    const init = async () => {
-      const y = (window as any).ymaps;
-      if (!y) return;
-      await y.ready();
+// Нажали Enter — геокодим
+const handleEnter: React.KeyboardEventHandler<HTMLInputElement> = async (e) => {
+if (e.key !== 'Enter') return
+const val = (e.target as HTMLInputElement).value.trim()
+if (!val) return
+const ymaps = window.ymaps
+try {
+if (ymaps?.geocode) {
+const res = await ymaps.geocode(val)
+const first = res.geoObjects.get(0)
+const c = first?.geometry?.getCoordinates?.() as [number, number] | undefined
+if (c) return onPick?.({ address: val, lat: c[0], lng: c[1] })
+}
+// Фолбэк на HTTP геокодер Яндекса
+const key = process.env.NEXT_PUBLIC_YANDEX_API_KEY
+const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${key}&format=json&geocode=${encodeURIComponent(val)}`
+const j = await fetch(url).then((r) => r.json())
+const p = j?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject?.Point?.pos as string | undefined
+if (p) {
+const [lng, lat] = p.split(' ').map(Number)
+onPick?.({ address: val, lat, lng })
+}
+} catch {}
+}
 
-      if (inputRef.current) {
-        // SuggestView
-        const suggest = new y.SuggestView(inputRef.current);
-        suggest.events.add('select', async (e: any) => {
-          const val = e.get('item')?.value;
-          if (!val) return;
-          onChange?.(val);
 
-          const res = await y.geocode(val);
-          const first = res.geoObjects.get(0);
-          if (!first) return;
-
-          const coords = first.geometry.getCoordinates();
-          onPick?.({ address: val, lat: coords[0], lng: coords[1] });
-        });
-      }
-    };
-    init();
-  }, [onChange, onPick]);
-
-  const handleEnter = async (evt: React.KeyboardEvent<HTMLInputElement>) => {
-    if (evt.key !== 'Enter') return;
-    const y = (window as any).ymaps;
-    if (!y || !inputRef.current) return;
-    await y.ready();
-
-    const val = inputRef.current.value;
-    const res = await y.geocode(val);
-    const first = res.geoObjects.get(0);
-    if (!first) return;
-
-    const coords = first.geometry.getCoordinates();
-    onPick?.({ address: val, lat: coords[0], lng: coords[1] });
-  };
-
-  return (
-    <input
-      ref={inputRef}
-      className="input"
-      placeholder={placeholder}
-      defaultValue={value}
-      onChange={(e) => onChange?.(e.target.value)}
-      onKeyDown={handleEnter}
-    />
-  );
+return (
+<input
+id={inputId}
+ref={inputRef}
+className="input"
+placeholder={placeholder}
+defaultValue={value}
+onChange={(e) => onChange?.(e.target.value)}
+onKeyDown={handleEnter}
+autoComplete="off"
+/>
+)
 }
