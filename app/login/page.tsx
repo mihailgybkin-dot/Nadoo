@@ -1,27 +1,38 @@
-"use client";
-import { useState } from "react";
-import Header from "../../components/Header";
-import { supabase } from "../../integrations/supabase/client";
+// app/login/page.tsx
+'use client';
+
+import { useState } from 'react';
+import { supabase } from '../../integrations/supabase/client';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
-    alert("Письмо с входом отправлено. Проверьте почту.");
+  const sendLink = async () => {
+    if (!email) return;
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+    setLoading(false);
+    if (!error) setSent(true);
+    else alert(error.message);
   };
 
   return (
-    <>
-      <Header />
-      <div className="container section">
-        <h1 className="h2">Войти</h1>
-        <form className="login" onSubmit={submit}>
-          <input className="input" type="email" placeholder="you@example.com" value={email} onChange={(e)=>setEmail(e.target.value)} required />
-          <button className="btn btn--primary">Получить ссылку для входа</button>
-        </form>
+    <section className="container pb-20 pt-10">
+      <h1 className="mb-6 text-2xl font-semibold">Войти</h1>
+      <div className="flex max-w-md gap-2">
+        <input
+          className="input"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <button className="btn-brand whitespace-nowrap" onClick={sendLink} disabled={loading}>
+          {loading ? 'Отправляю…' : 'Получить ссылку'}
+        </button>
       </div>
-    </>
+      {sent && <p className="mt-3 text-sm text-green-600">Ссылка отправлена на почту.</p>}
+    </section>
   );
 }
