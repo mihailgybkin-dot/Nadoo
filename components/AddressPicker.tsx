@@ -10,6 +10,24 @@ type Props = {
 
 declare global { interface Window { ymaps?: any } }
 
+function loadYandex(apiKey?: string) {
+  if (typeof window === 'undefined') return Promise.resolve(undefined)
+  if (window.ymaps?.ready) return new Promise((res) => window.ymaps.ready(() => res(window.ymaps)))
+  return new Promise((resolve) => {
+    const id = 'yandex-maps-api'
+    if (!document.getElementById(id)) {
+      const s = document.createElement('script')
+      s.id = id
+      s.src = `https://api-maps.yandex.ru/2.1/?lang=ru_RU${apiKey ? `&apikey=${apiKey}` : ''}`
+      s.async = true
+      document.head.appendChild(s)
+      s.onload = () => window.ymaps?.ready(() => resolve(window.ymaps))
+    } else {
+      window.ymaps?.ready(() => resolve(window.ymaps))
+    }
+  })
+}
+
 export default function AddressPicker({
   value = '',
   onChange,
@@ -18,25 +36,28 @@ export default function AddressPicker({
 }: Props) {
   const inputId = useMemo(() => `addr-${Math.random().toString(36).slice(2)}`, [])
 
-  // Подсказки Яндекса + выбор из списка
+  // Яндекс-подсказки + выбор
   useEffect(() => {
-    const ymaps = window.ymaps
-    const el = document.getElementById(inputId)
-    if (!ymaps || !el || !ymaps.SuggestView) return
-    const suggest = new ymaps.SuggestView(inputId, { results: 7 })
-    suggest.events.add('select', async (e: any) => {
-      const v = e.get('item')?.value as string
-      if (!v) return
-      const res = await ymaps.geocode(v)
-      const first = res.geoObjects.get(0)
-      if (!first) return
-      const c = first.geometry.getCoordinates() as [number, number]
-      onPick?.({ address: v, lat: c[0], lng: c[1] })
+    const apiKey = process.env.NEXT_PUBLIC_YANDEX_API_KEY
+    let suggest: any
+    loadYandex(apiKey).then((ymaps: any) => {
+      const el = document.getElementById(inputId)
+      if (!ymaps || !el || !ymaps.SuggestView) return
+      suggest = new ymaps.SuggestView(inputId, { results: 7 })
+      suggest.events.add('select', async (e: any) => {
+        const v = e.get('item')?.value as string
+        if (!v) return
+        const res = await ymaps.geocode(v)
+        const first = res.geoObjects.get(0)
+        if (!first) return
+        const c = first.geometry.getCoordinates() as [number, number]
+        onPick?.({ address: v, lat: c[0], lng: c[1] })
+      })
     })
     return () => suggest?.destroy?.()
   }, [inputId, onPick])
 
-  // Enter — геокодим введённое
+  // Enter — геокодим введённый текст
   const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = async (e) => {
     if (e.key !== 'Enter') return
     const v = (e.target as HTMLInputElement).value.trim()
