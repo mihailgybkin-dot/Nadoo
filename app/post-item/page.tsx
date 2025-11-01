@@ -1,7 +1,20 @@
 'use client'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import AddressPicker from '../../components/AddressPicker'
 import YandexMap from '../../components/YandexMap'
+
+async function reverseGeocode(lat: number, lng: number) {
+  const key = process.env.NEXT_PUBLIC_YANDEX_API_KEY || ''
+  const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${key}&format=json&geocode=${lng},${lat}`
+  try {
+    const j = await fetch(url).then((r) => r.json())
+    return (
+      j?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject?.metaDataProperty?.GeocoderMetaData?.text || ''
+    )
+  } catch {
+    return ''
+  }
+}
 
 export default function PostItemPage() {
   const [title, setTitle] = useState('')
@@ -10,12 +23,19 @@ export default function PostItemPage() {
   const [address, setAddress] = useState('')
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(null)
 
+  // когда двигаем метку/кликаем по карте — обновляем координаты и адрес
+  const movePoint = useCallback(async (coords: [number, number]) => {
+    const [lat, lng] = coords
+    setPoint({ lat, lng })
+    const full = await reverseGeocode(lat, lng)
+    if (full) setAddress(full)
+  }, [])
+
   return (
     <section className="container pb-20 pt-10">
       <h1 className="mb-6 text-2xl font-semibold">Сдать в аренду</h1>
-
       <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-8 lg:grid-cols-[1fr_520px]">
-        {/* левая колонка: форма */}
+        {/* форма */}
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium">Название</label>
@@ -37,29 +57,25 @@ export default function PostItemPage() {
               value={address}
               onChange={setAddress}
               onPick={(r) => {
-                setAddress(r.address)
+                setAddress(r.full ?? r.address) // если придёт full
                 setPoint({ lat: r.lat, lng: r.lng })
               }}
+              placeholder="Начните вводить адрес…"
             />
             <p className="text-xs text-neutral-500">
-              Подсказки работают. Выбери из списка или нажми <kbd>Enter</kbd> — метка на карте переместится.
+              Выберите адрес из подсказок или кликните по карте/перетащите метку — поле адреса заполнится автоматически.
             </p>
           </div>
-
           <button className="rounded bg-blue-600 px-4 py-2 text-white">Сохранить объявление</button>
         </div>
 
-        {/* правая колонка: карта */}
+        {/* карта */}
         <div>
           <YandexMap
             center={point ? [point.lat, point.lng] : [55.751244, 37.618423]}
-            markers={
-              point
-                ? [{ id: 'p', lat: point.lat, lng: point.lng, title: address }]
-                : []
-            }
-            markerOptions={{ preset: 'islands#dotIcon', iconColor: '#22C55E' }} // ярко-зеленый кружок
-            onClick={(coords) => setPoint({ lat: coords[0], lng: coords[1] })}
+            markers={point ? [{ id: 'm', lat: point.lat, lng: point.lng, title: address }] : []}
+            draggableMarker
+            onClick={movePoint}
             height={420}
           />
         </div>
