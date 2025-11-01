@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 type Props = {
   value?: string
@@ -8,33 +8,7 @@ type Props = {
   onPick?: (r: { address: string; lat: number; lng: number }) => void
 }
 
-declare global { interface Window { ymaps?: any } }
-
-function loadYandex(apiKey?: string) {
-  if (typeof window === 'undefined') return Promise.resolve(undefined)
-  // Уже загружено
-  if (window.ymaps?.ready) return new Promise((res) => window.ymaps.ready(() => res(window.ymaps)))
-  // Подключаем скрипт
-  return new Promise((resolve) => {
-    const id = 'yandex-maps-api'
-    if (!document.getElementById(id)) {
-      const s = document.createElement('script')
-      s.id = id
-      // Явно просим полный пакет, чтобы был SuggestView и geocode
-      const qp = new URLSearchParams({
-        lang: 'ru_RU',
-        load: 'package.full',
-        apikey: (apiKey || '')
-      })
-      s.src = `https://api-maps.yandex.ru/2.1/?${qp.toString()}`
-      s.async = true
-      document.head.appendChild(s)
-      s.onload = () => window.ymaps?.ready(() => resolve(window.ymaps))
-    } else {
-      window.ymaps?.ready(() => resolve(window.ymaps))
-    }
-  })
-}
+type Suggest = { id: string; label: string; full: string; lat: number; lng: number }
 
 export default function AddressPicker({
   value = '',
@@ -42,68 +16,117 @@ export default function AddressPicker({
   onPick,
   placeholder = 'Адрес или объект',
 }: Props) {
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState<Suggest[]>([])
+  const [hover, setHover] = useState(-1)
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const key = process.env.NEXT_PUBLIC_YANDEX_API_KEY || ''
+  const debounce = useRef<number | null>(null)
   const inputId = useMemo(() => `addr-${Math.random().toString(36).slice(2)}`, [])
 
-  // Вешаем подсказки Яндекса
+  // загрузка подсказок по мере ввода (через geocode API, без зависимостей)
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_YANDEX_API_KEY
-    let suggest: any
-    loadYandex(apiKey).then((ymaps: any) => {
-      const el = document.getElementById(inputId)
-      if (!ymaps || !el || !ymaps.SuggestView) return
-      suggest = new ymaps.SuggestView(inputId, { results: 7 })
-      // Выбор из списка — сразу геокодим и ставим метку
-      suggest.events.add('select', async (e: any) => {
-        const v = e.get('item')?.value as string
-        if (!v) return
-        try {
-          const res = await ymaps.geocode(v)
-          const first = res.geoObjects.get(0)
-          const c = first?.geometry?.getCoordinates?.() as [number, number] | undefined
-          if (c) onPick?.({ address: v, lat: c[0], lng: c[1] })
-        } catch {}
-      })
-    })
-    return () => suggest?.destroy?.()
-  }, [inputId, onPick])
+    if (!value || value.trim().length < 3) {
+      setItems([])
+      setOpen(false)
+      return
+    }
+    if (debounce.current) window.clearTimeout(debounce.current)
+    debounce.current = window.setTimeout(async () => {
+      try {
+        const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${key}&format=json&geocode=${encodeURIComponent(
+          value.trim()
+        )}&results=6`
+        const j = await fetch(url).then((r) => r.json())
+        const fm = j?.response?.GeoObjectCollection?.featureMember ?? []
+        const next: Suggest[] = fm.map((it: any, i: number) => {
+          const g = it.GeoObject
+          const pos = g?.Point?.pos as string
+          const [lng, lat] = (pos || '').split(' ').map(Number)
+          const name = g?.name || ''
+          const desc = g?.description || ''
+          const full = g?.metaDataProperty?.GeocoderMetaData?.text || `${name}, ${desc}`
+          return { id: `${i}-${full}`, label: `${name}${desc ? ` — ${desc}` : ''}`, full, lat, lng }
+        })
+        setItems(next)
+        setOpen(next.length > 0)
+        setHover(-1)
+      } catch {
+        setOpen(false)
+        setItems([])
+      }
+    }, 200)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
 
-  // ENTER — пытаемся geocode через JS-API, если нет — уходим в HTTP-геокодер
-  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = async (e) => {
-    if (e.key !== 'Enter') return
-    e.preventDefault()
-    const v = (e.target as HTMLInputElement).value.trim()
-    if (!v) return
-    try {
-      const ymaps = window.ymaps
-      if (ymaps?.geocode) {
-        const res = await ymaps.geocode(v)
-        const first = res.geoObjects.get(0)
-        const c = first?.geometry?.getCoordinates?.() as [number, number] | undefined
-        if (c) return onPick?.({ address: v, lat: c[0], lng: c[1] })
+  // клик вне — закрыть список
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!boxRef.current) return
+      if (!boxRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  const choose = (s: Suggest) => {
+    setOpen(false)
+    onPick?.({ address: s.full, lat: s.lat, lng: s.lng })
+  }
+
+  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (!open || items.length === 0) {
+      if (e.key === 'Enter' && value.trim()) {
+        // если список закрыт — попробуем выбрать первый вариант
+        e.preventDefault()
+        choose(items[0] ?? { full: value.trim(), label: value.trim(), lat: 0, lng: 0, id: '0' })
       }
-    } catch {}
-    // Фолбэк: HTTP-геокодер Яндекса
-    try {
-      const key = process.env.NEXT_PUBLIC_YANDEX_API_KEY || ''
-      const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${key}&format=json&geocode=${encodeURIComponent(v)}`
-      const j = await fetch(url).then((r) => r.json())
-      const pos: string | undefined = j?.response?.GeoObjectCollection?.featureMember?.[0]?.GeoObject?.Point?.pos
-      if (pos) {
-        const [lng, lat] = pos.split(' ').map(Number) // порядок lon lat!
-        onPick?.({ address: v, lat, lng })
-      }
-    } catch {}
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHover((h) => Math.min(items.length - 1, h + 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHover((h) => Math.max(0, h - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const s = items[hover >= 0 ? hover : 0]
+      if (s) choose(s)
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+    }
   }
 
   return (
-    <input
-      id={inputId}
-      value={value}
-      onChange={(e) => onChange?.(e.target.value)}
-      onKeyDown={onKeyDown}
-      placeholder={placeholder}
-      autoComplete="off"
-      className="w-full rounded-lg border px-3 py-2 outline-none focus:ring focus:ring-blue-200"
-    />
+    <div ref={boxRef} className="relative">
+      <input
+        id={inputId}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        autoComplete="off"
+        className="w-full rounded-lg border px-3 py-2 outline-none focus:ring focus:ring-blue-200"
+      />
+      {open && items.length > 0 && (
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border bg-white shadow">
+          {items.map((s, i) => (
+            <button
+              type="button"
+              key={s.id}
+              onMouseEnter={() => setHover(i)}
+              onClick={() => choose(s)}
+              className={`block w-full px-3 py-2 text-left text-sm ${
+                hover === i ? 'bg-neutral-100' : ''
+              }`}
+            >
+              <div className="font-medium">{s.label}</div>
+              <div className="text-xs text-neutral-500">{s.full}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
