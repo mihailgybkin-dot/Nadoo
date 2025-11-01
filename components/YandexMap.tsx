@@ -10,14 +10,20 @@ import {
   SearchControl,
 } from '@pbe/react-yandex-maps';
 
-type Marker = { id?: string | number; lat: number; lng: number };
+type Marker = {
+  id?: string | number;
+  lat: number;
+  lng: number;
+  /** опциональный заголовок/подсказка для балуна */
+  title?: string;
+  hint?: string;
+};
 
 type Props = {
   center: [number, number];
   zoom?: number;
   showSearch?: boolean;
   onBoundsChange?: (
-    /** bounds всегда массив координат */
     bounds: number[][],
     center: [number, number],
     zoom: number
@@ -35,7 +41,6 @@ export default function YandexMap({
   markers = [],
 }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_YANDEX_MAPS_KEY;
-
   const cx = (...a: Array<string | undefined>) => a.filter(Boolean).join(' ');
 
   return (
@@ -69,6 +74,10 @@ export default function YandexMap({
             <Placemark
               key={m.id ?? `${m.lat}-${m.lng}`}
               geometry={[m.lat, m.lng]}
+              properties={{
+                balloonContent: m.title ?? '',
+                hintContent: m.hint ?? m.title ?? '',
+              }}
             />
           ))}
         </Map>
