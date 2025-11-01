@@ -1,19 +1,28 @@
+"use client";
+
+import { useCallback } from "react";
 import { Badge } from "../components/ui/badge";
 import YandexMap from "../components/YandexMap";
 
 export default function Home() {
+  const handleBoundsChange = useCallback((bbox: any) => {
+    console.log("bbox:", bbox);
+    // TODO: здесь позже дернём Supabase RPC для "топ объявлений" по текущей области
+  }, []);
+
+  const handlePlacePicked = useCallback((p: { address?: string; lat: number; lng: number }) => {
+    console.log("picked:", p);
+    // TODO: здесь позже будем подставлять адрес/координаты в форму создания объявления
+  }, []);
+
   return (
     <main className="container mx-auto p-6 space-y-6">
       <section className="h-[500px]">
         <YandexMap
           className="w-full h-full rounded-lg"
           showSearch
-          onBoundsChange={(bbox) => {
-            console.log("bbox:", bbox);
-          }}
-          onPlacePicked={(p) => {
-            console.log("picked:", p);
-          }}
+          onBoundsChange={handleBoundsChange}
+          onPlacePicked={handlePlacePicked}
         />
       </section>
 
