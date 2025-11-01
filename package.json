@@ -13,14 +13,11 @@
     "react-dom": "19.2.0",
     "next": "16.0.1"
   },
-  "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
-    "eslint": "^9",
-    "eslint-config-next": "16.0.1"
-  }
+  "dependencies": {
+  "next": "13.5.6 || 14.x || 15.x || 16.x",
+  "react": "^18.2.0",
+  "react-dom": "^18.2.0",
+  "@pbe/react-yandex-maps": "1.2.5",
+  "classnames": "^2.5.1"
+}
 }
