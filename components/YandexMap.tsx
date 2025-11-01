@@ -1,10 +1,14 @@
-// components/YandexMap.tsx
-'use client';
+"use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { YMaps, Map, Placemark } from '@pbe/react-yandex-maps';
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import {
+  YMaps,
+  Map,
+  Placemark,
+  type YMapsApi,
+} from "@pbe/react-yandex-maps";
 
-type Bounds = {
+type BoundsBBox = {
   sw_lat: number;
   sw_lng: number;
   ne_lat: number;
@@ -12,84 +16,124 @@ type Bounds = {
 };
 
 type Props = {
-  className?: string;
-  center?: [number, number];
+  center?: [number, number]; // [lat, lng]
   zoom?: number;
+  className?: string;
   showSearch?: boolean;
-  onBoundsChange?: (b: Bounds) => void;
+  onBoundsChange?: (bbox: BoundsBBox) => void;
   onPlacePicked?: (p: { address: string; lat: number; lng: number }) => void;
 };
 
 export function YandexMap({
-  className,
-  center = [55.751244, 37.618423],
+  center = [55.7558, 37.6173],
   zoom = 10,
+  className,
   showSearch = true,
   onBoundsChange,
   onPlacePicked,
 }: Props) {
-  const ymapsKey = process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY!;
-  const [mapState, setMapState] = useState<{ center: [number, number]; zoom: number }>({
-    center,
-    zoom,
-  });
+  const mapRef = useRef<ymaps.Map | null>(null);
   const [marker, setMarker] = useState<[number, number] | null>(null);
 
-  const modules = useMemo(
-    () => (showSearch ? ['control.SearchControl', 'geocode'] : []),
-    [showSearch]
+  const query = useMemo(
+    () => ({
+      apikey: process.env.NEXT_PUBLIC_YANDEX_MAPS_KEY || "",
+      lang: "ru_RU",
+      coordorder: "latlong",
+      load: "package.full",
+    }),
+    []
   );
 
-  const handleBounds = (ymap: any) => {
-    try {
-      const bounds = ymap.getBounds(); // [[swLat, swLng], [neLat, neLng]]
-      if (!bounds || !onBoundsChange) return;
-      const [[sw_lat, sw_lng], [ne_lat, ne_lng]] = bounds;
-      onBoundsChange({ sw_lat, sw_lng, ne_lat, ne_lng });
-    } catch {}
-  };
-
-  const handleMapClick = async (e: any, ymaps: any) => {
-    const coords = e.get('coords') as [number, number];
-    setMarker(coords);
-
-    if (onPlacePicked && ymaps?.geocode) {
+  const handleBounds = useCallback(
+    (e: any) => {
       try {
-        const res = await ymaps.geocode(coords);
-        const first = res.geoObjects.get(0);
-        const address = first?.getAddressLine?.() || 'Адрес не найден';
-        onPlacePicked({ address, lat: coords[0], lng: coords[1] });
+        const b = e.get("newBounds");
+        if (b && Array.isArray(b) && b.length === 2) {
+          const [[swLng, swLat], [neLng, neLat]] = b;
+          onBoundsChange?.({
+            sw_lat: swLat,
+            sw_lng: swLng,
+            ne_lat: neLat,
+            ne_lng: neLng,
+          });
+        }
       } catch {}
-    }
-  };
+    },
+    [onBoundsChange]
+  );
+
+  const handleClick = useCallback(
+    (e: any) => {
+      const coords = e.get("coords") as [number, number];
+      setMarker(coords);
+      onPlacePicked?.({ address: "", lat: coords[0], lng: coords[1] });
+    },
+    [onPlacePicked]
+  );
+
+  const handleLoad = useCallback(
+    (ymaps: YMapsApi) => {
+      if (!mapRef.current || !showSearch) return;
+
+      const searchControl = new ymaps.control.SearchControl({
+        options: {
+          size: "large",
+          useMapBounds: true,
+          noPlacemark: true,
+          float: "right",
+          placeholderContent: "Введите адрес…",
+        },
+      });
+
+      mapRef.current.controls.add(searchControl, {
+        position: { top: 10, left: 10 },
+      });
+
+      searchControl.events.add("resultshow", () => {
+        const res = searchControl.getResultsArray()?.[0];
+        if (!res) return;
+
+        const geometry = res.geometry as any;
+        if (!geometry) return;
+
+        const coords = geometry.getCoordinates() as [number, number];
+        setMarker(coords);
+        mapRef.current?.setCenter(coords, 15, { duration: 300 });
+
+        const name = res.properties.get("name") || "";
+        const desc = res.properties.get("description") || "";
+        const address = [name, desc].filter(Boolean).join(", ");
+
+        onPlacePicked?.({ address, lat: coords[0], lng: coords[1] });
+      });
+    },
+    [onPlacePicked, showSearch]
+  );
 
   return (
-    <div className={className}>
-      <YMaps query={{ apikey: ymapsKey, load: 'package.full' }}>
+    <YMaps query={query}>
+      <div className={className}>
         <Map
-          defaultState={mapState}
-          state={mapState}
+          defaultState={{ center, zoom }}
+          instanceRef={(ref) => (mapRef.current = ref as unknown as ymaps.Map)}
+          onLoad={handleLoad}
+          onBoundsChange={handleBounds}
+          onClick={handleClick}
           width="100%"
           height="100%"
-          modules={modules}
-          onLoad={(ymaps: any) => {
-            // Установим локаль RU
-            if (ymaps?.culture) ymaps.culture = 'ru-RU';
-          }}
-          onBoundsChange={(inst: any) => handleBounds(inst)}
-          onClick={(e: any) => {
-            // @ts-ignore
-            const ymaps = (window as any).ymaps;
-            handleMapClick(e, ymaps);
-          }}
-          instanceRef={(inst) => {
-            if (!inst) return;
-            handleBounds(inst);
-          }}
+          modules={[
+            "control.SearchControl",
+            "control.ZoomControl",
+            "control.GeolocationControl",
+            "geoObject.addon.balloon",
+          ]}
         >
           {marker && <Placemark geometry={marker} />}
         </Map>
-      </YMaps>
-    </div>
+      </div>
+    </YMaps>
   );
 }
+
+export default YandexMap;
