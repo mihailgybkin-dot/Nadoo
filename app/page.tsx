@@ -1,8 +1,5 @@
-// app/page.tsx
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { YandexMap } from '@/components/YandexMap';
-import { supabase } from '@/integrations/supabase/client';
+import { Badge } from "../components/ui/badge";
+import YandexMap from "../components/YandexMap";
 
 export default function Home() {
   return (
@@ -12,11 +9,10 @@ export default function Home() {
           className="w-full h-full rounded-lg"
           showSearch
           onBoundsChange={(bbox) => {
-            // сюда позже подвяжем загрузку топ-объявлений через Supabase RPC
-            console.log('bbox:', bbox);
+            console.log("bbox:", bbox);
           }}
           onPlacePicked={(p) => {
-            console.log('picked:', p);
+            console.log("picked:", p);
           }}
         />
       </section>
@@ -26,7 +22,7 @@ export default function Home() {
           <h2 className="text-2xl font-bold">Топ аренды</h2>
           <Badge variant="outline">В текущей области</Badge>
         </div>
-        <div className="text-muted-foreground">Здесь позже появятся карточки из БД</div>
+        <div className="text-neutral-500">Тут будет лента карточек из БД</div>
       </section>
 
       <section>
@@ -34,7 +30,7 @@ export default function Home() {
           <h2 className="text-2xl font-bold">Топ заданий</h2>
           <Badge variant="outline">В текущей области</Badge>
         </div>
-        <div className="text-muted-foreground">И тут тоже — после подключения RPC</div>
+        <div className="text-neutral-500">И здесь — лента карточек из БД</div>
       </section>
     </main>
   );
