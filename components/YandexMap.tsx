@@ -17,12 +17,12 @@ type Props = {
   zoom?: number;
   showSearch?: boolean;
   onBoundsChange?: (
-    bounds: unknown,
+    /** bounds всегда массив координат */
+    bounds: number[][],
     center: [number, number],
     zoom: number
   ) => void;
   markers?: Marker[];
-  /** можно передать класс для внешнего контейнера карты */
   className?: string;
 };
 
@@ -36,7 +36,6 @@ export default function YandexMap({
 }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_YANDEX_MAPS_KEY;
 
-  // простая утилита для объединения классов, чтобы не тянуть сторонние либы
   const cx = (...a: Array<string | undefined>) => a.filter(Boolean).join(' ');
 
   return (
@@ -54,13 +53,12 @@ export default function YandexMap({
           onBoundsChange={(e: any) => {
             if (!onBoundsChange) return;
             const map = e.get('target');
-            const b = map.getBounds?.();
-            const c = map.getCenter?.();
-            const z = map.getZoom?.();
-            if (c && z != null) onBoundsChange(b, c as [number, number], z);
+            const b = (map.getBounds?.() as number[][] | undefined) ?? [];
+            const c = (map.getCenter?.() as [number, number]) ?? center;
+            const z = (map.getZoom?.() as number) ?? zoom;
+            onBoundsChange(b, c, z);
           }}
         >
-          {/* Контролы размещаем через position (у @pbe/react-yandex-maps так типы безопаснее) */}
           <ZoomControl options={{ position: { right: 10, top: 10 } }} />
           <GeolocationControl options={{ position: { right: 10, top: 60 } }} />
           {showSearch && (
