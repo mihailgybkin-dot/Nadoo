@@ -10,7 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@pbe/react-yandex-maps": "^5.1.2",
+    "@pbe/react-yandex-maps": "^1.2.5",
     "@supabase/auth-helpers-nextjs": "^0.9.0",
     "@supabase/supabase-js": "^2.46.1",
     "next": "16.0.1",
