@@ -19,7 +19,7 @@ export default function Page() {
         sw_lng: bbox.sw_lng,
         ne_lat: bbox.ne_lat,
         ne_lng: bbox.ne_lng,
-        limit_n: 20
+        limit_n: 20,
       });
 
       const { data: tasks } = await supabase.rpc("top_tasks_in_bbox", {
@@ -27,7 +27,7 @@ export default function Page() {
         sw_lng: bbox.sw_lng,
         ne_lat: bbox.ne_lat,
         ne_lng: bbox.ne_lng,
-        limit_n: 20
+        limit_n: 20,
       });
 
       setTopItems(items || []);
@@ -45,6 +45,7 @@ export default function Page() {
     <main>
       <Hero />
 
+      {/* карта */}
       <section className="container mx-auto px-4 py-6">
         <YandexMap
           center={[55.7558, 37.6173]}
@@ -55,6 +56,7 @@ export default function Page() {
         />
       </section>
 
+      {/* топ аренды */}
       <section className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-2xl font-bold">Топ аренды</h2>
@@ -68,16 +70,24 @@ export default function Page() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {topItems.map((it) => (
-              <a key={it.id} href={`/item/${it.id}`} className="block border rounded-lg overflow-hidden hover:shadow">
+              <a
+                key={it.id}
+                href={`/item/${it.id}`}
+                className="block border rounded-lg overflow-hidden hover:shadow"
+              >
                 <div
                   className="h-40 bg-cover bg-center"
                   style={{
-                    backgroundImage: `url(${it.images?.[0] || `https://picsum.photos/seed/${it.id}/600/400`})`
+                    backgroundImage: `url(${
+                      it.images?.[0] || `https://picsum.photos/seed/${it.id}/600/400`
+                    })`,
                   }}
                 />
                 <div className="p-3">
                   <div className="font-medium">{it.title}</div>
-                  <div className="text-sm text-gray-600">{it.price_per_day} ₽ / день</div>
+                  <div className="text-sm text-gray-600">
+                    {it.price_per_day} ₽ / день
+                  </div>
                 </div>
               </a>
             ))}
@@ -85,6 +95,7 @@ export default function Page() {
         )}
       </section>
 
+      {/* топ заданий */}
       <section className="container mx-auto px-4 pb-10">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-2xl font-bold">Топ заданий</h2>
@@ -98,16 +109,24 @@ export default function Page() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {topTasks.map((t) => (
-              <a key={t.id} href={`/task/${t.id}`} className="block border rounded-lg overflow-hidden hover:shadow">
+              <a
+                key={t.id}
+                href={`/task/${t.id}`}
+                className="block border rounded-lg overflow-hidden hover:shadow"
+              >
                 <div
                   className="h-40 bg-cover bg-center"
                   style={{
-                    backgroundImage: `url(${t.images?.[0] || `https://picsum.photos/seed/${t.id}/600/400`})`
+                    backgroundImage: `url(${
+                      t.images?.[0] || `https://picsum.photos/seed/${t.id}/600/400`
+                    })`,
                   }}
                 />
                 <div className="p-3">
                   <div className="font-medium">{t.title}</div>
-                  <div className="text-sm text-gray-600">{t.price_total} ₽ за задание</div>
+                  <div className="text-sm text-gray-600">
+                    {t.price_total} ₽ за задание
+                  </div>
                 </div>
               </a>
             ))}
