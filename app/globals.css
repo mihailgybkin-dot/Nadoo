@@ -1,3 +1,7 @@
+:root {
+  --brand: #2F6BF2; /* наш синий */
+}
+html, body { background: #fff; color: #0f172a; }
 @import "tailwindcss";
 
 :root {
