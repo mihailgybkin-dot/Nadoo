@@ -1,128 +1,120 @@
-/* Главная страница */
-"use client";
+// app/page.tsx
+'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Header from "../components/Header";
-import Hero from "../components/Hero";
-import YandexMap from "../components/YandexMap";
-import SearchBar from "../components/SearchBar";
-import { supabase } from "../integrations/supabase/client";
+import { useEffect, useMemo, useState } from 'react';
+import Hero from '../components/Hero';
+import SearchBar from '../components/SearchBar';
+import YandexMap from '../components/YandexMap';
+import { supabase } from '../integrations/supabase/client';
 
-type BBox = { sw_lat: number; sw_lng: number; ne_lat: number; ne_lng: number };
+type Marker = { id: string; lat: number; lng: number; title?: string };
 
-export default function Page() {
-  const [bbox, setBbox] = useState<BBox | null>(null);
-  const [topItems, setTopItems] = useState<any[]>([]);
-  const [topTasks, setTopTasks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+export default function HomePage() {
+  const [markers, setMarkers] = useState<Marker[]>([]);
+  const [bounds, setBounds] = useState<number[][] | null>(null);
+  const [center, setCenter] = useState<[number, number]>([55.751244, 37.618423]);
 
-  const loadTop = useCallback(async (box: BBox) => {
-    setLoading(true);
-    try {
-      const [{ data: items }, { data: tasks }] = await Promise.all([
-        supabase.rpc("top_items_in_bbox", {
-          sw_lat: box.sw_lat,
-          sw_lng: box.sw_lng,
-          ne_lat: box.ne_lat,
-          ne_lng: box.ne_lng,
-          limit_n: 20,
-        }),
-        supabase.rpc("top_tasks_in_bbox", {
-          sw_lat: box.sw_lat,
-          sw_lng: box.sw_lng,
-          ne_lat: box.ne_lat,
-          ne_lng: box.ne_lng,
-          limit_n: 20,
-        }),
-      ]);
-      setTopItems(items || []);
-      setTopTasks(tasks || []);
-    } finally {
-      setLoading(false);
+  const [category, setCategory] = useState('all');
+  const [query, setQuery] = useState('');
+  const [address, setAddress] = useState('');
+
+  const whereBounds = useMemo(() => {
+    if (!bounds) return null;
+    const [[swLat, swLng], [neLat, neLng]] = bounds;
+    return { swLat, swLng, neLat, neLng };
+  }, [bounds]);
+
+  const runSearch = async (params?: { category: string; query: string; address: string }) => {
+    const cat = params?.category ?? category;
+    const q = params?.query ?? query;
+
+    if (params?.address && params.address.trim()) {
+      try {
+        const y = (window as any).ymaps;
+        if (y) {
+          await y.ready();
+          const res = await y.geocode(params.address);
+          const first = res.geoObjects.get(0);
+          if (first) {
+            const coords = first.geometry.getCoordinates();
+            setCenter([coords[0], coords[1]]);
+          }
+        }
+      } catch {}
     }
-  }, []);
 
-  const onBoundsChange = useCallback((box: BBox) => {
-    setBbox(box);
-    loadTop(box);
-  }, [loadTop]);
+    // Пример запроса в Supabase. Таблица items: lat, lng, status, title, category
+    let queryBuilder = supabase
+      .from('items')
+      .select('id,title,lat,lng,status,category')
+      .eq('status', 'published');
 
-  const searchInitial = useMemo(() => ({ q: "", category: "all" }), []);
+    if (cat !== 'all') queryBuilder = queryBuilder.eq('category', cat);
+    if (q.trim()) queryBuilder = queryBuilder.ilike('title', `%${q}%`);
+
+    if (whereBounds) {
+      queryBuilder = queryBuilder
+        .gte('lat', whereBounds.swLat)
+        .lte('lat', whereBounds.neLat)
+        .gte('lng', whereBounds.swLng)
+        .lte('lng', whereBounds.neLng);
+    }
+
+    const { data, error } = await queryBuilder.limit(100);
+    if (!error && data) {
+      setMarkers(
+        data
+          .filter((d) => typeof d.lat === 'number' && typeof d.lng === 'number')
+          .map((d) => ({ id: String(d.id), lat: d.lat, lng: d.lng, title: d.title ?? '' }))
+      );
+    }
+  };
+
+  useEffect(() => {
+    runSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whereBounds]);
 
   return (
     <>
-      <Header />
       <Hero />
-      <div className="container">
-        <SearchBar initial={searchInitial} />
-        <div className="card card--flat">
-          <YandexMap
-            className="map"
-            center={[55.751244, 37.618423]}
-            zoom={10}
-            onBoundsChange={onBoundsChange}
-            showSearch
-          />
-        </div>
+      <SearchBar
+        onSearch={(p) => {
+          setCategory(p.category);
+          setQuery(p.query);
+          setAddress(p.address);
+          runSearch(p);
+        }}
+      />
 
-        <section className="section">
-          <div className="section__head">
-            <h2 className="h2">Топ аренды</h2>
-            <span className="chip">в текущей области</span>
-          </div>
-          {loading ? (
-            <p className="muted">Загрузка…</p>
-          ) : topItems.length ? (
-            <div className="cards">
-              {topItems.slice(0, 10).map((x) => (
-                <a key={x.id} href={`/item/${x.id}`} className="card card--item">
-                  <div
-                    className="card__img"
-                    style={{
-                      backgroundImage: `url(${(x.images && x.images[0]) || `https://picsum.photos/seed/${x.id}/600/400`})`,
-                    }}
-                  />
-                  <div className="card__body">
-                    <div className="card__title">{x.title}</div>
-                    <div className="price">{x.price_per_day} ₽ <span className="muted">/ день</span></div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">Нет объявлений в пределах области</p>
-          )}
-        </section>
+      <YandexMap
+        center={center}
+        markers={markers}
+        onBoundsChange={(b) => setBounds(b)}
+      />
 
-        <section className="section">
-          <div className="section__head">
-            <h2 className="h2">Топ заданий</h2>
-            <span className="chip">в текущей области</span>
-          </div>
-          {loading ? (
-            <p className="muted">Загрузка…</p>
-          ) : topTasks.length ? (
-            <div className="cards">
-              {topTasks.slice(0, 10).map((x) => (
-                <a key={x.id} href={`/task/${x.id}`} className="card card--item">
-                  <div
-                    className="card__img"
-                    style={{
-                      backgroundImage: `url(${(x.images && x.images[0]) || `https://picsum.photos/seed/${x.id}/600/400`})`,
-                    }}
-                  />
-                  <div className="card__body">
-                    <div className="card__title">{x.title}</div>
-                    <div className="price accent">{x.price_total} ₽ <span className="muted">за задание</span></div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">Нет заданий в пределах области</p>
-          )}
-        </section>
-      </div>
+      <section className="container pb-12">
+        <h2 className="mb-2 text-xl font-semibold">Топ аренды <span className="text-xs text-neutral-500">(в текущей области)</span></h2>
+        {markers.length === 0 ? (
+          <p className="text-neutral-500">Нет объявлений в пределах области</p>
+        ) : (
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {markers.slice(0, 6).map((m) => (
+              <li key={m.id} className="rounded-2xl border border-neutral-200 p-4">
+                <div className="text-sm font-medium">{m.title || 'Объявление'}</div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  {m.lat.toFixed(4)}, {m.lng.toFixed(4)}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="container pb-20">
+        <h2 className="mb-2 text-xl font-semibold">Топ заданий <span className="text-xs text-neutral-500">(в текущей области)</span></h2>
+        <p className="text-neutral-500">Нет заданий в пределах области</p>
+      </section>
     </>
   );
 }
