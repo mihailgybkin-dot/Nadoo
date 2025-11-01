@@ -1,148 +1,134 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import Badge from "../components/ui/badge";
-import YandexMap from "../components/YandexMap";
-import { supabase } from "../integrations/supabase/client";
+import Hero from "@/components/Hero";
+import { YandexMap } from "@/components/YandexMap";
+import { supabase } from "@/integrations/supabase/client";
 
-type Item = {
-  id: string;
-  title: string;
-  price_per_day: number | null;
-  images?: string[] | null;
-  lat: number;
-  lng: number;
-};
-
-type Task = {
-  id: string;
-  title: string;
-  price_total: number | null;
-  images?: string[] | null;
-  lat: number;
-  lng: number;
-};
-
-export default function Home() {
+export default function Page() {
+  const [topItems, setTopItems] = useState<any[]>([]);
+  const [topTasks, setTopTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<Item[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
 
   const loadTop = useCallback(async (bbox: any) => {
     if (!bbox) return;
     setLoading(true);
     try {
-      const { data: iData, error: e1 } = await supabase.rpc("top_items_in_bbox", {
+      const { data: items } = await supabase.rpc("top_items_in_bbox", {
         sw_lat: bbox.sw_lat,
         sw_lng: bbox.sw_lng,
         ne_lat: bbox.ne_lat,
         ne_lng: bbox.ne_lng,
         limit_n: 20,
       });
-      const { data: tData, error: e2 } = await supabase.rpc("top_tasks_in_bbox", {
+
+      const { data: tasks } = await supabase.rpc("top_tasks_in_bbox", {
         sw_lat: bbox.sw_lat,
         sw_lng: bbox.sw_lng,
         ne_lat: bbox.ne_lat,
         ne_lng: bbox.ne_lng,
         limit_n: 20,
       });
-      if (e1) console.error(e1);
-      if (e2) console.error(e2);
-      setItems(iData || []);
-      setTasks(tData || []);
+
+      setTopItems(items || []);
+      setTopTasks(tasks || []);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const handleBoundsChange = useCallback((bbox: any) => {
-    // можно добавить debounce, если будет «дребезг»
+  const onBoundsChange = useCallback((bbox: any) => {
     loadTop(bbox);
   }, [loadTop]);
 
-  const handlePlacePicked = useCallback((p: { address?: string; lat: number; lng: number }) => {
-    console.log("picked:", p);
-  }, []);
-
   return (
-    <main className="container mx-auto p-6 space-y-6">
-      <section className="h-[500px]">
+    <main>
+      <Hero />
+
+      {/* карта */}
+      <section className="container mx-auto px-4 py-6">
         <YandexMap
-          className="w-full h-full rounded-lg"
+          center={[55.7558, 37.6173]}
+          zoom={10}
+          onBoundsChange={onBoundsChange}
           showSearch
-          onBoundsChange={handleBoundsChange}
-          onPlacePicked={handlePlacePicked}
-          markers={[]} // позже подставим маркеры из items/tasks
+          className="w-full h-[520px] rounded-lg overflow-hidden"
         />
       </section>
 
-      {/* Топ аренды */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
+      {/* топ аренды */}
+      <section className="container mx-auto px-4 py-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-2xl font-bold">Топ аренды</h2>
-          <Badge variant="outline">В текущей области</Badge>
+          <span className="text-xs text-gray-500">в текущей области</span>
         </div>
 
-        {loading && <div className="text-neutral-500">Загружаю…</div>}
-
-        {!loading && items.length === 0 && (
-          <div className="text-neutral-500">Нет объявлений в пределах области</div>
-        )}
-
-        {!loading && items.length > 0 && (
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {items.slice(0, 10).map((i) => (
-              <div key={i.id} className="min-w-[280px] rounded border p-3">
+        {loading ? (
+          <p className="text-sm text-gray-500">Загружаем популярные объявления…</p>
+        ) : topItems.length === 0 ? (
+          <p className="text-sm text-gray-500">Нет объявлений в пределах области</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {topItems.map((it) => (
+              <a
+                key={it.id}
+                href={`/item/${it.id}`}
+                className="block border rounded-lg overflow-hidden hover:shadow"
+              >
                 <div
-                  className="h-40 rounded bg-cover bg-center"
+                  className="h-40 bg-cover bg-center"
                   style={{
                     backgroundImage: `url(${
-                      (i.images && i.images[0]) ||
-                      `https://picsum.photos/seed/${i.id}/400/300`
+                      it.images?.[0] || `https://picsum.photos/seed/${it.id}/600/400`
                     })`,
                   }}
                 />
-                <div className="mt-2 font-semibold">{i.title}</div>
-                <div className="text-neutral-600">
-                  {i.price_per_day ? `${i.price_per_day} ₽ / день` : "Цена по запросу"}
+                <div className="p-3">
+                  <div className="font-medium">{it.title}</div>
+                  <div className="text-sm text-gray-600">
+                    {it.price_per_day} ₽ / день
+                  </div>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         )}
       </section>
 
-      {/* Топ заданий */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
+      {/* топ заданий */}
+      <section className="container mx-auto px-4 pb-10">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-2xl font-bold">Топ заданий</h2>
-          <Badge variant="outline">В текущей области</Badge>
+          <span className="text-xs text-gray-500">в текущей области</span>
         </div>
 
-        {loading && <div className="text-neutral-500">Загружаю…</div>}
-
-        {!loading && tasks.length === 0 && (
-          <div className="text-neutral-500">Нет заданий в пределах области</div>
-        )}
-
-        {!loading && tasks.length > 0 && (
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {tasks.slice(0, 10).map((t) => (
-              <div key={t.id} className="min-w-[280px] rounded border p-3">
+        {loading ? (
+          <p className="text-sm text-gray-500">Загружаем популярные задания…</p>
+        ) : topTasks.length === 0 ? (
+          <p className="text-sm text-gray-500">Нет заданий в пределах области</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {topTasks.map((t) => (
+              <a
+                key={t.id}
+                href={`/task/${t.id}`}
+                className="block border rounded-lg overflow-hidden hover:shadow"
+              >
                 <div
-                  className="h-40 rounded bg-cover bg-center"
+                  className="h-40 bg-cover bg-center"
                   style={{
                     backgroundImage: `url(${
-                      (t.images && t.images[0]) ||
-                      `https://picsum.photos/seed/${t.id}/400/300`
+                      t.images?.[0] || `https://picsum.photos/seed/${t.id}/600/400`
                     })`,
                   }}
                 />
-                <div className="mt-2 font-semibold">{t.title}</div>
-                <div className="text-neutral-600">
-                  {t.price_total ? `${t.price_total} ₽ за задание` : "Цена по запросу"}
+                <div className="p-3">
+                  <div className="font-medium">{t.title}</div>
+                  <div className="text-sm text-gray-600">
+                    {t.price_total} ₽ за задание
+                  </div>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         )}
