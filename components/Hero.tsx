@@ -8,13 +8,21 @@ export default function Hero() {
           Nadoo — аренда вещей и быстрые задания рядом
         </h1>
         <p className="text-gray-600 max-w-2xl">
-          Сдавайте вещи в аренду, находите исполнителей для задач и зарабатывайте. Безопасно, удобно и рядом с вами.
+          Сдавайте вещи в аренду, находите исполнителей для бытовых задач и
+          зарабатывайте на выполнении заданий. Безопасно, удобно и рядом с вами.
         </p>
+
         <div className="mt-6 flex gap-3">
-          <Link href="/post-item" className="rounded-lg px-4 py-2 bg-black text-white text-sm font-medium">
+          <Link
+            href="/post-item"
+            className="rounded-lg px-4 py-2 bg-black text-white text-sm font-medium"
+          >
             Сдать в аренду
           </Link>
-          <Link href="/post-task" className="rounded-lg px-4 py-2 border text-sm font-medium">
+          <Link
+            href="/post-task"
+            className="rounded-lg px-4 py-2 border text-sm font-medium"
+          >
             Разместить задание
           </Link>
         </div>
