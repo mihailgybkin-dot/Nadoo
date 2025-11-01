@@ -1,4 +1,3 @@
-// components/YandexMap.tsx
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -22,11 +21,8 @@ type Props = {
   center?: [number, number];
   zoom?: number;
   className?: string;
-  /** уведомлять страницу при изменении границ карты */
   onBoundsChange?: (bbox: BBox) => void;
-  /** уведомлять при выборе точки (клик или поиск) */
   onPlacePicked?: (p: { address?: string; lat: number; lng: number }) => void;
-  /** показать строку поиска */
   showSearch?: boolean;
 };
 
@@ -36,7 +32,7 @@ export const YandexMap: React.FC<Props> = ({
   className,
   onBoundsChange,
   onPlacePicked,
-  showSearch = false
+  showSearch = true
 }) => {
   const [point, setPoint] = useState<[number, number] | null>(null);
 
@@ -46,7 +42,7 @@ export const YandexMap: React.FC<Props> = ({
   );
 
   const handleClick = useCallback(
-    async (e: any) => {
+    (e: any) => {
       const coords = e.get("coords") as [number, number];
       setPoint(coords);
       onPlacePicked?.({ lat: coords[0], lng: coords[1] });
@@ -57,13 +53,13 @@ export const YandexMap: React.FC<Props> = ({
   const handleBounds = useCallback(
     (ymap: any) => {
       try {
-        const bounds = ymap.getBounds(); // [[swLat, swLng],[neLat, neLng]]
-        if (bounds && onBoundsChange) {
+        const b = ymap.getBounds(); // [[swLat, swLng],[neLat, neLng]]
+        if (b && onBoundsChange) {
           onBoundsChange({
-            sw_lat: bounds[0][0],
-            sw_lng: bounds[0][1],
-            ne_lat: bounds[1][0],
-            ne_lng: bounds[1][1]
+            sw_lat: b[0][0],
+            sw_lng: b[0][1],
+            ne_lat: b[1][0],
+            ne_lng: b[1][1]
           });
         }
       } catch {
@@ -73,34 +69,34 @@ export const YandexMap: React.FC<Props> = ({
     [onBoundsChange]
   );
 
-  // обработчик результата поиска
-  const onSearchResultShow = useCallback(
-    (ymapsMap: any) => {
-      if (!onPlacePicked) return;
+  const onSearchLoad = useCallback(
+    (mapInstance: any) => {
+      if (!showSearch || !mapInstance) return;
       try {
-        const searchControl = ymapsMap.controls.get("searchControl");
-        searchControl.events.add("resultshow", async (e: any) => {
+        const searchControl = mapInstance.controls.get("searchControl");
+        // при показе результата поиска:
+        searchControl?.events.add("resultshow", (e: any) => {
           const index = e.get("index");
-          const result = searchControl.getResultsArray()[index];
+          const result = searchControl.getResultsArray()?.[index];
           if (!result) return;
           const coords = result.geometry.getCoordinates();
           const address = result.properties.get("text");
           setPoint(coords);
-          onPlacePicked({ address, lat: coords[0], lng: coords[1] });
+          onPlacePicked?.({ address, lat: coords[0], lng: coords[1] });
         });
       } catch {
         // ignore
       }
     },
-    [onPlacePicked]
+    [onPlacePicked, showSearch]
   );
 
   return (
     <div className={className}>
       <YMaps
         query={{
-          // если используешь ключ — добавь ENV-переменную NEXT_PUBLIC_YANDEX_API_KEY в Vercel
-          // apikey: process.env.NEXT_PUBLIC_YANDEX_API_KEY,
+          // если нужен API-ключ:
+          // apikey: process.env.NEXT_PUBLIC_YANDEX_MAPS_KEY,
           lang: "ru_RU",
           coordorder: "latlong",
           load: "package.full"
@@ -108,27 +104,23 @@ export const YandexMap: React.FC<Props> = ({
       >
         <Map
           defaultState={mapState}
+          state={mapState}
           onClick={handleClick}
-          onLoad={(ymaps: any) => {
-            // когда карта готова — подвяжем обработчик для searchControl
-            onSearchResultShow(ymaps);
-          }}
+          onLoad={onSearchLoad}
           onActionEnd={(e: any) => handleBounds(e.get("target"))}
+          instanceRef={(m: any) => m && handleBounds(m)}
           width="100%"
           height="100%"
-          instanceRef={(m: any) => m && handleBounds(m)}
           modules={[
             "control.SearchControl",
             "control.ZoomControl",
             "control.GeolocationControl"
           ]}
-          state={mapState}
           options={{ suppressMapOpenBlock: true }}
         >
           <ZoomControl />
           <GeolocationControl />
           {showSearch && <SearchControl options={{ float: "left" }} />}
-
           {point && <Placemark geometry={point} />}
         </Map>
       </YMaps>
