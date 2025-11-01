@@ -1,11 +1,12 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+type PickResult = { address: string; full?: string; lat: number; lng: number }
 type Props = {
   value?: string
   placeholder?: string
   onChange?: (text: string) => void
-  onPick?: (r: { address: string; lat: number; lng: number }) => void
+  onPick?: (r: PickResult) => void
 }
 
 type Suggest = { id: string; label: string; full: string; lat: number; lng: number }
@@ -24,7 +25,7 @@ export default function AddressPicker({
   const debounce = useRef<number | null>(null)
   const inputId = useMemo(() => `addr-${Math.random().toString(36).slice(2)}`, [])
 
-  // загрузка подсказок по мере ввода (через geocode API, без зависимостей)
+  // грузим подсказки Яндекса по мере ввода
   useEffect(() => {
     if (!value || value.trim().length < 3) {
       setItems([])
@@ -45,7 +46,7 @@ export default function AddressPicker({
           const [lng, lat] = (pos || '').split(' ').map(Number)
           const name = g?.name || ''
           const desc = g?.description || ''
-          const full = g?.metaDataProperty?.GeocoderMetaData?.text || `${name}, ${desc}`
+          const full = g?.metaDataProperty?.GeocoderMetaData?.text || `${name}${desc ? `, ${desc}` : ''}`
           return { id: `${i}-${full}`, label: `${name}${desc ? ` — ${desc}` : ''}`, full, lat, lng }
         })
         setItems(next)
@@ -71,62 +72,4 @@ export default function AddressPicker({
 
   const choose = (s: Suggest) => {
     setOpen(false)
-    onPick?.({ address: s.full, lat: s.lat, lng: s.lng })
-  }
-
-  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
-    if (!open || items.length === 0) {
-      if (e.key === 'Enter' && value.trim()) {
-        // если список закрыт — попробуем выбрать первый вариант
-        e.preventDefault()
-        choose(items[0] ?? { full: value.trim(), label: value.trim(), lat: 0, lng: 0, id: '0' })
-      }
-      return
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setHover((h) => Math.min(items.length - 1, h + 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setHover((h) => Math.max(0, h - 1))
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      const s = items[hover >= 0 ? hover : 0]
-      if (s) choose(s)
-    } else if (e.key === 'Escape') {
-      setOpen(false)
-    }
-  }
-
-  return (
-    <div ref={boxRef} className="relative">
-      <input
-        id={inputId}
-        value={value}
-        onChange={(e) => onChange?.(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder={placeholder}
-        autoComplete="off"
-        className="w-full rounded-lg border px-3 py-2 outline-none focus:ring focus:ring-blue-200"
-      />
-      {open && items.length > 0 && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border bg-white shadow">
-          {items.map((s, i) => (
-            <button
-              type="button"
-              key={s.id}
-              onMouseEnter={() => setHover(i)}
-              onClick={() => choose(s)}
-              className={`block w-full px-3 py-2 text-left text-sm ${
-                hover === i ? 'bg-neutral-100' : ''
-              }`}
-            >
-              <div className="font-medium">{s.label}</div>
-              <div className="text-xs text-neutral-500">{s.full}</div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+    onPick?.({ address: s.full, full: s.full, lat: s.la
