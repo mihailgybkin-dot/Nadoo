@@ -1,54 +1,36 @@
-"use client";
+// components/Header.tsx
+'use client';
 
-import Image from "next/image";
-import { useEffect, useState } from "react";
-import { supabase } from "../integrations/supabase/client";
+import Link from 'next/link';
 
 export default function Header() {
-  const [email, setEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      setEmail(data.user?.email ?? null);
-    })();
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => {
-      setEmail(sess?.user?.email ?? null);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
-
-  const signOut = async () => { await supabase.auth.signOut(); };
-
   return (
-    <header className="site-header">
-      <div className="container site-header__row">
-        <a className="brand" href="/">
-          <span className="brand__logo">
-            <Image src="/logo-blue.svg" width={18} height={18} alt="Nadoo" />
-          </span>
-          <span className="brand__name">Nadoo</span>
-        </a>
+    <header className="sticky top-0 z-30 w-full bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+      <div className="container flex h-14 items-center justify-between">
+        <Link href="/" className="flex items-center gap-3">
+          {/* ЛОГОТИП: положи свой файл в /public/logo.svg.
+             Если файла нет — рисуем мягкий маркер как фолбэк. */}
+          <img
+            src="/logo.svg"
+            alt="Nadoo"
+            className="h-6 w-6"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <span className="text-lg font-semibold tracking-tight">Nadoo</span>
+        </Link>
 
-        <nav className="nav">
-          <a href="/" className="nav__link">Главная</a>
-          <a href="/my-rentals" className="nav__link">Мои аренды</a>
-          <a href="/my-tasks" className="nav__link">Мои задания</a>
+        <nav className="hidden gap-6 text-sm md:flex">
+          <Link href="/" className="hover:opacity-70">Главная</Link>
+          <Link href="/my-rentals" className="hover:opacity-70">Мои аренды</Link>
+          <Link href="/my-tasks" className="hover:opacity-70">Мои задания</Link>
         </nav>
 
-        <div className="actions">
-          <a className="btn btn--ghost" href="/post-item">Сдать в аренду</a>
-          <a className="btn btn--primary" href="/post-task">Разместить задание</a>
-
-          {email ? (
-            <div className="user">
-              <span className="user__email">{email}</span>
-              <a className="btn btn--ghost" href="/dashboard">Кабинет</a>
-              <button className="btn btn--ghost" onClick={signOut}>Выйти</button>
-            </div>
-          ) : (
-            <a className="btn btn--ghost" href="/login">Войти</a>
-          )}
+        <div className="flex items-center gap-2">
+          <Link href="/post-item" className="btn-outline">Сдать в аренду</Link>
+          <Link href="/post-task" className="btn-brand">Разместить задание</Link>
+          <Link href="/login" className="btn-outline">Войти</Link>
         </div>
       </div>
     </header>
