@@ -25,7 +25,7 @@ export default function AddressPicker({
   const apiKey = process.env.NEXT_PUBLIC_YANDEX_API_KEY || ''
   const inputId = useMemo(() => `addr-${Math.random().toString(36).slice(2)}`, [])
 
-  // Загружаем «подсказки» через HTTP геокодер Яндекса по мере набора
+  // грузим подсказки через HTTP-геокодер Яндекса (без зависимостей)
   useEffect(() => {
     const q = (value || '').trim()
     if (q.length < 3) {
@@ -50,7 +50,9 @@ export default function AddressPicker({
           const label = desc ? `${name} — ${desc}` : name
           return { id: `${i}-${pos}`, label, full, lat, lng }
         }).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng))
-        setItems(next); setOpen(next.length > 0); setHover(-1)
+        setItems(next)
+        setOpen(next.length > 0)
+        setHover(-1)
       } catch {
         setItems([]); setOpen(false)
       }
@@ -58,7 +60,7 @@ export default function AddressPicker({
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [value, apiKey])
 
-  // Клик вне — закрыть список
+  // клик вне блока — закрыть список
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!boxRef.current) return
@@ -73,15 +75,15 @@ export default function AddressPicker({
     onPick?.({ address: s.full, full: s.full, lat: s.lat, lng: s.lng })
   }
 
-  // Enter/стрелки/escape
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = async (e) => {
+    // управление выпадающим списком
     if (open && items.length) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setHover(h => Math.min(items.length - 1, h + 1)); return }
       if (e.key === 'ArrowUp')   { e.preventDefault(); setHover(h => Math.max(0, h - 1)); return }
       if (e.key === 'Enter')     { e.preventDefault(); choose(items[hover >= 0 ? hover : 0]); return }
       if (e.key === 'Escape')    { setOpen(false); return }
     }
-    // Если список закрыт — берём первый результат геокодера по введённому адресу
+    // список закрыт — геокодим введённое и берём первый результат
     if (e.key === 'Enter' && (value || '').trim()) {
       e.preventDefault()
       try {
@@ -102,4 +104,35 @@ export default function AddressPicker({
   }
 
   return (
-    <div
+    <div ref={boxRef} className="relative">
+      <input
+        id={inputId}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        autoComplete="off"
+        className="w-full rounded-lg border px-3 py-2 outline-none focus:ring focus:ring-blue-200"
+      />
+      {open && items.length > 0 ? (
+        <div
+          className="absolute z-50 mt-1 w-full overflow-auto rounded-xl border bg-white shadow"
+          style={{ maxHeight: 300 }}
+        >
+          {items.map((s, i) => (
+            <button
+              type="button"
+              key={s.id}
+              onMouseEnter={() => setHover(i)}
+              onClick={() => choose(s)}
+              className={`block w-full px-3 py-2 text-left text-sm ${hover === i ? 'bg-neutral-100' : ''}`}
+            >
+              <div className="font-medium">{s.label}</div>
+              <div className="text-xs text-neutral-500">{s.full}</div>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
