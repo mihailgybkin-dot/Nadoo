@@ -1,80 +1,60 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import Image from "next/image";
-import { useState } from "react";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+const nav = [
+  { href: '/', label: 'Главная' },
+  { href: '/my-rents', label: 'Мои аренды' },
+  { href: '/my-tasks', label: 'Мои задания' },
+];
 
 export default function Header() {
-  const [open, setOpen] = useState(false);
-
-  const nav = [
-    { href: "/", label: "Главная" },
-    { href: "/post-item", label: "Сдать в аренду" },
-    { href: "/post-task", label: "Разместить задание" },
-    { href: "/my-rents", label: "Мои аренды" },
-    { href: "/my-tasks", label: "Мои задания" },
-    { href: "/wallet", label: "Кошелёк" },
-  ];
+  const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b">
-      <div className="container mx-auto px-4 flex items-center justify-between h-14">
+    <header className="sticky top-0 z-40 w-full border-b bg-white/80 backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
+        {/* Логотип слева */}
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo-nadoo.svg" alt="Nadoo" width={28} height={28} />
-          <span className="font-bold text-lg">Nadoo</span>
+          <div className="h-7 w-7 rounded-lg bg-[#2F6BF2] shadow-inner" />
+          <span className="text-lg font-bold tracking-tight">Nadoo</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-4">
-          {nav.map((i) => (
-            <Link
-              key={i.href}
-              href={i.href}
-              className="text-sm text-gray-700 hover:text-black"
-            >
-              {i.label}
-            </Link>
-          ))}
-          <Link
-            href="/auth"
-            className="text-sm font-medium rounded-lg px-3 py-1.5 bg-black text-white hover:opacity-90"
-          >
-            Войти
-          </Link>
+        {/* Навигация */}
+        <nav className="hidden items-center gap-6 sm:flex">
+          {nav.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`text-sm transition ${
+                  active ? 'text-[#2F6BF2] font-semibold' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
-        <button
-          className="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg border"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Меню"
-        >
-          ☰
-        </button>
-      </div>
-
-      {/* Мобильное меню */}
-      {open && (
-        <div className="md:hidden border-t bg-white">
-          <div className="px-4 py-3 flex flex-col gap-2">
-            {nav.map((i) => (
-              <Link
-                key={i.href}
-                href={i.href}
-                className="text-sm text-gray-800"
-                onClick={() => setOpen(false)}
-              >
-                {i.label}
-              </Link>
-            ))}
-            <Link
-              href="/auth"
-              className="text-sm font-medium rounded-lg px-3 py-2 bg-black text-white text-center"
-              onClick={() => setOpen(false)}
-            >
-              Войти
-            </Link>
-          </div>
+        {/* Действия справа */}
+        <div className="flex items-center gap-2">
+          <Link
+            href="/post-item"
+            className="rounded-xl border border-[#2F6BF2]/20 bg-white px-3 py-2 text-sm font-medium text-[#2F6BF2] shadow-sm hover:border-[#2F6BF2]/40"
+          >
+            Сдать в аренду
+          </Link>
+          <Link
+            href="/post-task"
+            className="rounded-xl bg-[#2F6BF2] px-3 py-2 text-sm font-medium text-white shadow hover:opacity-90"
+          >
+            Разместить задание
+          </Link>
         </div>
-      )}
+      </div>
     </header>
   );
 }
