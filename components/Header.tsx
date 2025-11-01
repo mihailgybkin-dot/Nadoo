@@ -13,7 +13,7 @@ export default function Header() {
     { href: "/post-task", label: "Разместить задание" },
     { href: "/my-rents", label: "Мои аренды" },
     { href: "/my-tasks", label: "Мои задания" },
-    { href: "/wallet", label: "Кошелёк" },
+    { href: "/wallet", label: "Кошелёк" }
   ];
 
   return (
@@ -26,18 +26,11 @@ export default function Header() {
 
         <nav className="hidden md:flex items-center gap-4">
           {nav.map((i) => (
-            <Link
-              key={i.href}
-              href={i.href}
-              className="text-sm text-gray-700 hover:text-black"
-            >
+            <Link key={i.href} href={i.href} className="text-sm text-gray-700 hover:text-black">
               {i.label}
             </Link>
           ))}
-          <Link
-            href="/auth"
-            className="text-sm font-medium rounded-lg px-3 py-1.5 bg-black text-white hover:opacity-90"
-          >
+          <Link href="/auth" className="text-sm font-medium rounded-lg px-3 py-1.5 bg-black text-white hover:opacity-90">
             Войти
           </Link>
         </nav>
@@ -51,17 +44,11 @@ export default function Header() {
         </button>
       </div>
 
-      {/* Мобильное меню */}
       {open && (
         <div className="md:hidden border-t bg-white">
           <div className="px-4 py-3 flex flex-col gap-2">
             {nav.map((i) => (
-              <Link
-                key={i.href}
-                href={i.href}
-                className="text-sm text-gray-800"
-                onClick={() => setOpen(false)}
-              >
+              <Link key={i.href} href={i.href} className="text-sm text-gray-800" onClick={() => setOpen(false)}>
                 {i.label}
               </Link>
             ))}
