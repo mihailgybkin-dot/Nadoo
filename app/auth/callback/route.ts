@@ -1,21 +1,28 @@
-import { NextResponse } from 'next/server';
-import { createSupabaseServer } from '@/lib/supabase-server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseForRoute } from '@/lib/supabase/server';
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const code = url.searchParams.get('code');
-  const origin = url.origin;
-  const redirectTo = url.searchParams.get('redirect_to') || '/profile';
+  const code = url.searchParams.get('code') || '';
+  const next = url.searchParams.get('next') || '/profile';
 
-  if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=auth`);
+  // готовим ответ-редирект (на него будут записаны куки)
+  const redirectUrl = new URL(next, url.origin);
+  const res = NextResponse.redirect(redirectUrl);
+
+  if (!code) return res; // без кода просто редиректим
+
+  try {
+    const supabase = createSupabaseForRoute(req, res);
+    // обмен кода на сессию -> куки запишутся в 'res' через cookie-адаптер
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      redirectUrl.searchParams.set('error', 'auth');
+      return NextResponse.redirect(redirectUrl);
+    }
+    return res;
+  } catch {
+    redirectUrl.searchParams.set('error', 'auth');
+    return NextResponse.redirect(redirectUrl);
   }
-
-  const supabase = createSupabaseServer();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) {
-    return NextResponse.redirect(`${origin}/login?error=auth`);
-  }
-
-  return NextResponse.redirect(`${origin}${redirectTo}`);
 }
