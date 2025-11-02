@@ -2,18 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '../../lib/supabaseClient'
 import AddressPicker from '../../components/AddressPicker'
 import YandexMap from '../../components/YandexMap'
-import { supabase } from '../../lib/supabaseClient'
 
-/** Центр по умолчанию */
+/** === НАСТРОЙКИ === */
 const MOSCOW: [number, number] = [55.751244, 37.618423]
-/** Ключ Яндекса (может быть пустым — тогда используем OSM как фолбэк) */
 const YA_KEY = process.env.NEXT_PUBLIC_YANDEX_API_KEY || ''
+/** Имя бакета для файлов: задайте в Vercel → NEXT_PUBLIC_SUPABASE_BUCKET */
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_BUCKET || 'nadoo-files'
 
 /** Обратный геокод: сначала Яндекс, затем OSM (фолбэк) */
 async function reverseGeocode(lat: number, lng: number) {
-  // 1) Яндекс
   try {
     if (YA_KEY) {
       const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${YA_KEY}&format=json&geocode=${lng},${lat}&lang=ru_RU`
@@ -23,7 +23,6 @@ async function reverseGeocode(lat: number, lng: number) {
       if (full) return String(full)
     }
   } catch {}
-  // 2) OSM
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=ru`
     const j = await fetch(url, { headers: { 'User-Agent': 'Nadoo/1.0 (nadoo.ru)' } }).then(r => r.json())
@@ -38,17 +37,15 @@ const TYPES = ['Аренда', 'Услуга']
 export default function PostItemPage() {
   const router = useRouter()
 
-  /** ⛔️ ГЕЙТ ДО ФОРМЫ: если пользователь не залогинен — сразу отправляем на /login */
+  /** 1) Гейт: если не залогинен — сразу на /login */
   useEffect(() => {
     ;(async () => {
       const { data } = await supabase.auth.getUser()
-      if (!data.user) {
-        router.replace('/login?next=/post-item')
-      }
+      if (!data.user) router.replace('/login?next=/post-item')
     })()
   }, [router])
 
-  // Поля формы
+  /** 2) Поля формы */
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState<string>('')
@@ -56,16 +53,21 @@ export default function PostItemPage() {
   const [category, setCategory] = useState(CATEGORIES[0])
   const [kind, setKind] = useState(TYPES[0])
 
-  // Адрес и точка
+  /** 3) Адрес и точка */
   const [address, setAddress] = useState('')
   const [point, setPoint] = useState<{ lat: number; lng: number }>({ lat: MOSCOW[0], lng: MOSCOW[1] })
 
-  // Медиа
+  /** 4) Медиафайлы */
   const [files, setFiles] = useState<File[]>([])
+  const preview = useMemo(
+    () => files.map((f) => ({ name: f.name, type: f.type, url: URL.createObjectURL(f) })),
+    [files]
+  )
+
   const [saving, setSaving] = useState(false)
   const canSave = title.trim() && price.trim() && address.trim()
 
-  // При первом рендере подтянуть адрес стартовой метки
+  /** Подтянуть адрес стартовой метки */
   useEffect(() => {
     ;(async () => {
       const full = await reverseGeocode(point.lat, point.lng)
@@ -74,7 +76,7 @@ export default function PostItemPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Клики/перетаскивания на карте → обновляем точку и адрес
+  /** Перемещение метки/клик по карте */
   const movePoint = useCallback(async (coords: [number, number]) => {
     const [lat, lng] = coords
     setPoint({ lat, lng })
@@ -82,25 +84,25 @@ export default function PostItemPage() {
     if (full) setAddress(full)
   }, [])
 
-  // Загрузка файлов в Supabase Storage (bucket: public)
+  /** Загрузка всех файлов в Supabase Storage (BUCKET) */
   const uploadAll = useCallback(
     async (uid: string) => {
-      if (!files.length) return []
-      const out: string[] = []
+      if (!files.length) return [] as string[]
+      const urls: string[] = []
       for (let i = 0; i < files.length; i++) {
         const f = files[i]
         const path = `items/${uid}/${Date.now()}-${i}-${f.name}`
-        const { error } = await supabase.storage.from('public').upload(path, f, { upsert: true })
-        if (error) throw error
-        const { data } = supabase.storage.from('public').getPublicUrl(path)
-        out.push(data.publicUrl)
+        const up = await supabase.storage.from(BUCKET).upload(path, f, { upsert: true })
+        if (up.error) throw up.error
+        const pub = supabase.storage.from(BUCKET).getPublicUrl(path)
+        urls.push(pub.data.publicUrl)
       }
-      return out
+      return urls
     },
     [files]
   )
 
-  // Сохранение объявления
+  /** Сохранение объявления */
   const onSubmit = useCallback(async () => {
     if (!canSave || saving) return
     setSaving(true)
@@ -108,8 +110,6 @@ export default function PostItemPage() {
       const { data: auth } = await supabase.auth.getUser()
       const uid = auth.user?.id
       if (!uid) {
-        alert('Войдите в аккаунт, чтобы разместить объявление.')
-        setSaving(false)
         router.replace('/login?next=/post-item')
         return
       }
@@ -127,38 +127,31 @@ export default function PostItemPage() {
         address,
         lat: point.lat,
         lng: point.lng,
-        images
+        images, // text[] в БД
       })
       if (error) throw error
 
-      // Успех → на главную (там метка попадёт в топ-ленту по радиусу)
-      router.push('/')
+      router.push('/') // успех → на главную
     } catch (e: any) {
-      console.error(e)
       alert('Не удалось сохранить объявление: ' + (e?.message || 'ошибка'))
+      console.error(e)
     } finally {
       setSaving(false)
     }
-  }, [canSave, saving, title, description, price, deposit, category, kind, address, point, uploadAll, router])
+  }, [canSave, saving, router, uploadAll, title, description, price, deposit, category, kind, address, point])
 
-  // Выбор файлов
+  /** Выбор файлов */
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sel = Array.from(e.target.files ?? []).slice(0, 10)
     setFiles(sel)
   }
-
-  // Превью
-  const preview = useMemo(
-    () => files.map((f, i) => ({ name: f.name, url: URL.createObjectURL(f), type: f.type })),
-    [files]
-  )
 
   return (
     <section className="container pb-20 pt-10">
       <h1 className="mb-6 text-2xl font-semibold">Сдать в аренду</h1>
 
       <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-8 lg:grid-cols-[1fr_520px]">
-        {/* Форма */}
+        {/* Левая колонка — форма */}
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium">Название *</label>
@@ -166,6 +159,7 @@ export default function PostItemPage() {
               className="w-full rounded border px-3 py-2"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              placeholder="Например: Дрель Makita"
             />
           </div>
 
@@ -175,6 +169,7 @@ export default function PostItemPage() {
               className="min-h-[90px] w-full rounded border px-3 py-2"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder="Пара слов о состоянии и комплектации"
             />
           </div>
 
@@ -213,6 +208,7 @@ export default function PostItemPage() {
                 inputMode="numeric"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
+                placeholder="500"
               />
             </div>
             <div>
@@ -222,6 +218,7 @@ export default function PostItemPage() {
                 inputMode="numeric"
                 value={deposit}
                 onChange={(e) => setDeposit(e.target.value)}
+                placeholder="0"
               />
             </div>
           </div>
@@ -238,7 +235,7 @@ export default function PostItemPage() {
               placeholder="Начните вводить адрес…"
             />
             <p className="text-xs text-neutral-500">
-              Выберите из подсказок или кликните по карте/перетащите метку — адрес обновится.
+              Можно выбрать из подсказок или кликнуть по карте/перетащить метку — адрес обновится.
             </p>
           </div>
 
@@ -271,7 +268,7 @@ export default function PostItemPage() {
           </button>
         </div>
 
-        {/* Карта */}
+        {/* Правая колонка — карта */}
         <div>
           <YandexMap
             center={[point.lat, point.lng]}
