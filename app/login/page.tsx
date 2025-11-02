@@ -17,7 +17,6 @@ export default function LoginPage() {
 
     try {
       const origin = window.location.origin
-      // важно: добавляем next=/profile, чтобы после обмена кода открыть профиль
       const redirectTo = `${origin}/auth/callback?next=/profile`
 
       const { error } = await supabase.auth.signInWithOtp({
@@ -45,18 +44,14 @@ export default function LoginPage() {
           type="email"
           required
         />
-        <button
-          className="btn"
-          disabled={status === 'sending'}
-          style={{marginTop: 12}}
-        >
+        <button className="btn" disabled={status === 'sending'} style={{marginTop: 12}}>
           Получить ссылку для входа
         </button>
       </form>
 
       {status === 'sent' && (
         <p style={{marginTop: 12}}>
-          ✅ Ссылка отправлена на <b>{email}</b>. Открой письмо и перейди по ссылке.
+          ✅ Ссылка отправлена на <b>{email}</b>. Перейдите по ссылке из письма.
         </p>
       )}
       {status === 'error' && (
