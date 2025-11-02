@@ -1,25 +1,30 @@
-// app/profile/page.tsx
-'use client';
+import { redirect } from 'next/navigation';
+import { createSupabaseServer } from '@/lib/supabase/server';
 
-import { useEffect, useState } from 'react';
-import { createSupabaseBrowser } from '@/lib/supabase-browser';
+export default async function ProfilePage() {
+  const supabase = createSupabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
 
-export default function ProfilePage() {
-  const supabase = createSupabaseBrowser();
-  const [email, setEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
-  }, []);
+  if (!user) {
+    redirect('/login?next=/profile');
+  }
 
   return (
-    <div>
-      <h1 style={{ fontSize: 28, fontWeight: 700, margin: '12px 0' }}>Профиль</h1>
-      <p>Почта: {email ?? '—'}</p>
-      <div style={{ marginTop: 12, display: 'flex', gap: 12 }}>
-        <a href="/my-rents">Мои аренды</a>
-        <a href="/my-tasks">Мои задания</a>
+    <main className="mx-auto max-w-2xl p-6">
+      <h1 className="text-3xl font-semibold mb-6">Личный кабинет</h1>
+
+      <div className="rounded-2xl border border-black/10 p-6 bg-white/60">
+        <div className="text-lg font-medium">{user.email}</div>
+        <div className="text-sm text-black/60 mt-1">ID: {user.id}</div>
+
+        <form
+          action="/api/logout"
+          method="post"
+          className="mt-6"
+        >
+          <button className="btn-primary" type="submit">Выйти</button>
+        </form>
       </div>
-    </div>
+    </main>
   );
 }
