@@ -10,13 +10,11 @@ const MOSCOW: [number, number] = [55.751244, 37.618423]
 const YA_KEY = process.env.NEXT_PUBLIC_YANDEX_API_KEY || ''
 const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_BUCKET || 'nadoo-files'
 
-/** Строка -> число (500 или "500,0" -> 500) */
 const toNum = (v: string) => {
   const n = Number(String(v ?? '').replace(',', '.'))
   return Number.isFinite(n) ? n : 0
 }
 
-/** Обратный геокод (сначала Яндекс, потом OSM) */
 async function reverseGeocode(lat: number, lng: number) {
   try {
     if (YA_KEY) {
@@ -44,15 +42,10 @@ const TASK_CATEGORIES = [
   'Другое',
 ]
 
-async function ensureProfile(uid: string) {
-  // создаст запись, если её нет (на случай FK items/tasks.owner -> profiles.id)
-  await supabase.from('profiles').upsert({ id: uid }, { onConflict: 'id' })
-}
-
 export default function PostTaskPage() {
   const router = useRouter()
 
-  // 1) если не авторизован — сразу на /login
+  // если не авторизован — сразу на /login
   useEffect(() => {
     ;(async () => {
       const { data } = await supabase.auth.getUser()
@@ -60,19 +53,16 @@ export default function PostTaskPage() {
     })()
   }, [router])
 
-  // 2) поля формы
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState(TASK_CATEGORIES[0])
-  const [budget, setBudget] = useState<string>('') // бюджет за всё задание
-  const [due, setDue] = useState<string>('') // срок (дата/время)
+  const [budget, setBudget] = useState<string>('')
+  const [due, setDue] = useState<string>('')
   const [remote, setRemote] = useState(false)
 
-  // адрес + точка (если задание не удалённое)
   const [address, setAddress] = useState('')
   const [point, setPoint] = useState<{ lat: number; lng: number }>({ lat: MOSCOW[0], lng: MOSCOW[1] })
 
-  // медиа
   const [files, setFiles] = useState<File[]>([])
   const preview = useMemo(
     () => files.map((f) => ({ name: f.name, type: f.type, url: URL.createObjectURL(f) })),
@@ -80,12 +70,8 @@ export default function PostTaskPage() {
   )
 
   const [saving, setSaving] = useState(false)
-  const canSave =
-    title.trim().length > 0 &&
-    (remote || address.trim().length > 0) &&
-    budget.trim().length > 0
+  const canSave = title.trim() && (remote || address.trim()) && budget.trim()
 
-  // подтягиваем адрес стартовой метки
   useEffect(() => {
     if (remote) return
     ;(async () => {
@@ -133,15 +119,14 @@ export default function PostTaskPage() {
         return
       }
 
-      await ensureProfile(uid)
       const images = await uploadAll(uid)
 
+      // ВАЖНО: owner НЕ отправляем — его поставит дефолт auth.uid() на стороне БД
       const payload: Record<string, any> = {
-        owner: uid,
         title,
         description,
         category,
-        budget: toNum(budget),   // если в БД другое имя — см. SQL ниже
+        budget: toNum(budget),
         remote,
         due_at: due ? new Date(due).toISOString() : null,
         images,
@@ -156,7 +141,7 @@ export default function PostTaskPage() {
       const { error } = await supabase.from('tasks').insert(payload)
       if (error) throw error
 
-      router.push('/') // успех → на главную
+      router.push('/')
     } catch (e: any) {
       alert('Не удалось создать задание: ' + (e?.message || 'ошибка'))
       console.error(e)
@@ -170,7 +155,6 @@ export default function PostTaskPage() {
       <h1 className="mb-6 text-2xl font-semibold">Разместить задание</h1>
 
       <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-8 lg:grid-cols-[1fr_520px]">
-        {/* Левая колонка — форма */}
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium">Заголовок *</label>
@@ -178,7 +162,7 @@ export default function PostTaskPage() {
               className="w-full rounded border px-3 py-2"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например: Забрать посылку с ПВЗ и привезти домой"
+              placeholder="Например: Помочь забрать и доставить посылку"
             />
           </div>
 
@@ -200,10 +184,8 @@ export default function PostTaskPage() {
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                {TASK_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
+                {['Курьер/Доставка','Ремонт/Дом','IT/Дизайн','Фото/Видео','Мероприятия','Другое'].map((c) => (
+                  <option key={c} value={c}>{c}</option>
                 ))}
               </select>
             </div>
@@ -288,7 +270,6 @@ export default function PostTaskPage() {
           </button>
         </div>
 
-        {/* Правая колонка — карта (прячем, если remote) */}
         <div>
           {!remote ? (
             <YandexMap
