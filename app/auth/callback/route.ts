@@ -1,6 +1,6 @@
 // app/auth/callback/route.ts
 import { NextResponse } from 'next/server';
-import { createSupabaseServer } from '@/lib/supabase';
+import { createSupabaseServer } from '@/lib/supabase-server';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -17,6 +17,5 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL('/login?error=auth', req.url));
   }
 
-  // после успешного входа ведём в профиль
   return NextResponse.redirect(new URL('/profile', req.url));
 }
