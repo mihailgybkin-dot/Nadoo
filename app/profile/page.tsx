@@ -2,11 +2,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createSupabaseBrowser } from '@/lib/supabase';
+import { createSupabaseBrowser } from '@/lib/supabase-browser';
 
 export default function ProfilePage() {
-  const [email, setEmail] = useState<string | null>(null);
   const supabase = createSupabaseBrowser();
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
