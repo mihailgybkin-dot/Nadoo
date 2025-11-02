@@ -1,17 +1,23 @@
 // middleware.ts
-import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import { NextResponse } from 'next/server'
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-  // эта строка подтянет/продлит сессию супабейса на сервере
-  const supabase = createMiddlewareClient({ req, res })
-  await supabase.auth.getSession()
-  return res
+export function middleware(req: NextRequest) {
+  const url = new URL(req.url)
+  const { pathname, searchParams, origin } = url
+
+  // 1) Supabase иногда кидает на "/" с ?code=...
+  if (pathname === '/' && searchParams.has('code')) {
+    return NextResponse.redirect(new URL(`/auth/callback?${searchParams.toString()}`, origin))
+  }
+
+  // 2) Старые/левые ссылки вида "/callback?code=..." → на /auth/callback
+  if (pathname === '/callback' && searchParams.has('code')) {
+    return NextResponse.redirect(new URL(`/auth/callback?${searchParams.toString()}`, origin))
+  }
+
+  return NextResponse.next()
 }
 
-// исключаем служебные пути
-export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|images|fonts).*)'],
-}
+// перехватываем только корень и возможный старый /callback
+export const config = { matcher: ['/', '/callback'] }
