@@ -33,15 +33,6 @@ async function reverseGeocode(lat: number, lng: number) {
   return ''
 }
 
-const TASK_CATEGORIES = [
-  'Курьер/Доставка',
-  'Ремонт/Дом',
-  'IT/Дизайн',
-  'Фото/Видео',
-  'Мероприятия',
-  'Другое',
-]
-
 export default function PostTaskPage() {
   const router = useRouter()
 
@@ -55,9 +46,10 @@ export default function PostTaskPage() {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState(TASK_CATEGORIES[0])
+  const [category, setCategory] = useState('Курьер/Доставка')
   const [budget, setBudget] = useState<string>('')
-  const [due, setDue] = useState<string>('')
+
+  const [due, setDue] = useState<string>('') // datetime-local
   const [remote, setRemote] = useState(false)
 
   const [address, setAddress] = useState('')
@@ -121,12 +113,14 @@ export default function PostTaskPage() {
 
       const images = await uploadAll(uid)
 
-      // ВАЖНО: owner НЕ отправляем — его поставит дефолт auth.uid() на стороне БД
+      // ВАЖНО: owner НЕ отправляем — БД подставит auth.uid() (дефолт)
+      // НО отправляем price_total = бюджет (иначе NOT NULL блокирует вставку)
       const payload: Record<string, any> = {
         title,
         description,
         category,
         budget: toNum(budget),
+        price_total: toNum(budget),   // <— ключевая строка
         remote,
         due_at: due ? new Date(due).toISOString() : null,
         images,
@@ -162,7 +156,7 @@ export default function PostTaskPage() {
               className="w-full rounded border px-3 py-2"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например: Помочь забрать и доставить посылку"
+              placeholder="Например: Помощь в укладке бордюра"
             />
           </div>
 
@@ -208,7 +202,7 @@ export default function PostTaskPage() {
                 inputMode="numeric"
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
-                placeholder="1000"
+                placeholder="3000"
               />
             </div>
             <div className="flex items-end gap-2">
