@@ -1,64 +1,62 @@
 'use client'
 import { useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { supabase } from '../../lib/supabaseClient'
 
 export default function LoginPage() {
-  const supabase = createClientComponentClient()
+  const router = useRouter()
+  const sp = useSearchParams()
+  const next = sp.get('next') || '/'
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [phase, setPhase] = useState<'enter' | 'sent'>('enter')
-  const [msg, setMsg] = useState('')
+  const [sent, setSent] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const send = async () => {
-    setMsg('')
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/auth/callback` },
-    })
-    if (error) setMsg(error.message)
-    else setPhase('sent')
-  }
-
-  const verify = async () => {
-    setMsg('')
-    const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
-    if (error) setMsg(error.message)
-    else if (data?.session) window.location.href = '/'
+  const sendLink = async () => {
+    setErr(null)
+    setLoading(true)
+    try {
+      const emailRedirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo, shouldCreateUser: true }
+      })
+      if (error) throw error
+      setSent(true)
+    } catch (e: any) {
+      setErr(e?.message || 'Не удалось отправить ссылку')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <section className="container pb-16 pt-10">
+    <section className="container max-w-xl pb-16 pt-10">
       <h1 className="mb-6 text-2xl font-semibold">Войти</h1>
-      <div className="flex gap-3">
-        <input
-          className="w-full rounded border px-3 py-2"
-          placeholder="you@example.com"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <button className="rounded bg-blue-600 px-4 py-2 text-white" onClick={send}>
-          Получить ссылку / код
-        </button>
-      </div>
 
-      {phase !== 'enter' && (
-        <div className="mt-4 space-y-2">
-          <p className="text-sm text-neutral-500">Пришёл 6-значный код? Введите ниже:</p>
-          <input
-            className="w-full rounded border px-3 py-2 tracking-widest"
-            placeholder="123456"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <button className="rounded border px-4 py-2" onClick={verify}>
-            Войти по коду
-          </button>
-        </div>
+      <label className="mb-2 block text-sm font-medium">Ваш e-mail</label>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="mb-3 w-full rounded border px-3 py-2"
+        placeholder="you@example.com"
+      />
+
+      <button
+        onClick={sendLink}
+        disabled={!email || loading}
+        className={`rounded px-4 py-2 text-white ${email && !loading ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400'}`}
+      >
+        {loading ? 'Отправляем…' : 'Получить ссылку для входа'}
+      </button>
+
+      {sent && (
+        <p className="mt-3 text-sm text-green-700">
+          Письмо отправлено. Откройте ссылку на этом устройстве — мы автоматически войдём и вернём вас на нужную страницу.
+        </p>
       )}
-
-      {msg && <p className="mt-3 text-red-600">{msg}</p>}
+      {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
     </section>
   )
 }
