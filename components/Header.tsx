@@ -1,23 +1,57 @@
 'use client'
+
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+
+const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => {
+  const p = usePathname()
+  const active = p === href
+  return (
+    <Link
+      href={href}
+      className={`px-3 py-2 text-sm ${active ? 'text-black' : 'text-neutral-600 hover:text-black'}`}
+    >
+      {children}
+    </Link>
+  )
+}
 
 export default function Header() {
   return (
-    <div className="border-b">
-      <div className="container flex h-14 items-center justify-between">
+    <header className="border-b">
+      <div className="container flex h-14 items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo-nadoo.svg" alt="Nadoo" width={112} height={28} />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white font-bold">N</div>
+          <span className="text-base font-semibold">Nadoo</span>
         </Link>
-        <nav className="hidden gap-4 sm:flex">
-          <Link href="/" className="text-sm hover:underline">Главная</Link>
-          <Link href="/my" className="text-sm hover:underline">Мои аренды</Link>
-          <Link href="/tasks" className="text-sm hover:underline">Мои задания</Link>
+
+        <nav className="flex items-center">
+          <NavLink href="/">Главная</NavLink>
+          <NavLink href="/my-rents">Мои аренды</NavLink>
+          <NavLink href="/my-tasks">Мои задания</NavLink>
         </nav>
+
         <div className="flex items-center gap-2">
-          <Link href="/post-item" className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white">Сдать в аренду</Link>
-          <Link href="/login" className="rounded border px-3 py-1.5 text-sm">Войти</Link>
+          <Link
+            href="/post-item"
+            className="rounded bg-neutral-100 px-3 py-2 text-sm hover:bg-neutral-200"
+          >
+            Сдать в аренду
+          </Link>
+          <Link
+            href="/post-task"
+            className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            Разместить задание
+          </Link>
+          <Link
+            href="/login"
+            className="rounded px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+          >
+            Войти
+          </Link>
         </div>
       </div>
-    </div>
+    </header>
   )
 }
