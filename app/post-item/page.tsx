@@ -9,7 +9,7 @@ import YandexMap from '../../components/YandexMap'
 /** === НАСТРОЙКИ === */
 const MOSCOW: [number, number] = [55.751244, 37.618423]
 const YA_KEY = process.env.NEXT_PUBLIC_YANDEX_API_KEY || ''
-/** Имя бакета задаём в Vercel → NEXT_PUBLIC_SUPABASE_BUCKET */
+/** Имя бакета: Vercel → NEXT_PUBLIC_SUPABASE_BUCKET */
 const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_BUCKET || 'nadoo-files'
 
 /** Обратный геокод: сначала Яндекс, затем OSM (фолбэк) */
@@ -39,6 +39,20 @@ const TYPES = ['Аренда', 'Услуга']
 const toNum = (v: string) => {
   const n = Number(String(v ?? '').replace(',', '.'))
   return Number.isFinite(n) ? n : 0
+}
+
+/** Гарантируем, что у пользователя есть строка в profiles с его id
+ *  (актуально, если FK items.owner → profiles.id)
+ */
+async function ensureProfile(uid: string) {
+  // если таблицы profiles нет — это просто упадёт, а мы покажем понятную ошибку
+  const { error } = await supabase
+    .from('profiles')
+    .upsert({ id: uid }, { onConflict: 'id' }) // создаст, если нет
+  if (error) {
+    // не блокируем сохранение, но покажем причину
+    console.warn('ensureProfile error:', error.message)
+  }
 }
 
 export default function PostItemPage() {
@@ -121,9 +135,13 @@ export default function PostItemPage() {
         return
       }
 
+      // 1) гарантируем наличие строки в profiles (если FK на profiles.id)
+      await ensureProfile(uid)
+
+      // 2) загружаем медиа
       const images = await uploadAll(uid)
 
-      /** В твоей БД поле называется price_per_day (NOT NULL) */
+      // 3) вставляем объявление (в БД поле price_per_day — NOT NULL)
       const payload: Record<string, any> = {
         owner: uid,
         title,
@@ -137,7 +155,7 @@ export default function PostItemPage() {
         images, // text[]
       }
 
-      // Если хочешь писать залог — оставляем; иначе можно удалить строку ниже
+      // Если ведёшь залог — пишем. Если такого столбца в БД нет, можно удалить строку ниже.
       payload.deposit = toNum(deposit)
 
       const { error } = await supabase.from('items').insert(payload)
