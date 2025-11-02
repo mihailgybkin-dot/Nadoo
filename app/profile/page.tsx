@@ -1,38 +1,52 @@
-// app/profile/page.tsx
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import ProfileClient from './profile-client'
+'use client';
 
-export const dynamic = 'force-dynamic'
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
-export default async function ProfilePage() {
-  const supabase = createServerComponentClient({ cookies })
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) redirect('/login?next=/profile')
+type Item = { id: string; title: string; address?: string };
+type Task = { id: string; title: string; address?: string };
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, full_name, phone, avatar_url, currency, language')
-    .eq('id', session.user.id)
-    .single()
+export default function ProfilePage() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user }, error: uerr } = await supabase.auth.getUser();
+      if (uerr) { setErr(uerr.message); return; }
+      setEmail(user?.email ?? null);
+      if (!user) return;
+
+      const [{ data: it }, { data: tk }] = await Promise.all([
+        supabase.from('items').select('id,title,address').eq('owner_id', user.id).order('created_at', { ascending:false }),
+        supabase.from('tasks').select('id,title,address').eq('owner_id', user.id).order('created_at', { ascending:false }),
+      ]);
+
+      setItems(it || []);
+      setTasks(tk || []);
+    })();
+  }, []);
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/';
+  };
 
   return (
-    <div className="container" style={{maxWidth: 900, margin: '24px auto'}}>
+    <main style={{ maxWidth: 920, margin:'24px auto', padding:16 }}>
       <h1>Профиль</h1>
-      <ProfileClient
-        user={{
-          id: session.user.id,
-          email: session.user.email ?? ''
-        }}
-        initialProfile={{
-          full_name: profile?.full_name ?? '',
-          phone: profile?.phone ?? '',
-          avatar_url: profile?.avatar_url ?? '',
-          currency: profile?.currency ?? 'RUB',
-          language: profile?.language ?? 'ru'
-        }}
-      />
-    </div>
-  )
+      <p>Вы вошли как: <b>{email ?? '—'}</b></p>
+      <button onClick={logout} style={{ margin:'8px 0 24px' }}>Выйти</button>
+
+      <h2>Мои аренды</h2>
+      {items.length === 0 ? <p>Пока пусто</p> :
+        <ul>{items.map(i => <li key={i.id}>{i.title} — {i.address || 'без адреса'}</li>)}</ul>}
+
+      <h2 style={{ marginTop: 24 }}>Мои задания</h2>
+      {tasks.length === 0 ? <p>Пока пусто</p> :
+        <ul>{tasks.map(t => <li key={t.id}>{t.title} — {t.address || 'без адреса'}</li>)}</ul>}
+    </main>
+  );
 }
