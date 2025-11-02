@@ -1,5 +1,6 @@
+// app/auth/callback/route.ts
 import { NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server';
+import { createSupabaseServer } from '@/lib/supabase';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -9,12 +10,13 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL('/login?error=auth', req.url));
   }
 
-  const supabase = getSupabaseServer();
+  const supabase = createSupabaseServer();
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-  try {
-    await supabase.auth.exchangeCodeForSession(code);
-    return NextResponse.redirect(new URL('/profile', req.url));
-  } catch {
+  if (error) {
     return NextResponse.redirect(new URL('/login?error=auth', req.url));
   }
+
+  // после успешного входа ведём в профиль
+  return NextResponse.redirect(new URL('/profile', req.url));
 }
