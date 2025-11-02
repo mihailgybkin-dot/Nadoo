@@ -1,16 +1,26 @@
 'use client'
-import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabaseClient'
+
+export const dynamic = 'force-dynamic'
 
 export default function LoginPage() {
   const router = useRouter()
-  const sp = useSearchParams()
-  const next = sp.get('next') || '/'
+  const [next, setNext] = useState('/')        // куда вернуть после входа
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // читаем ?next= из адресной строки без useSearchParams
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search)
+      setNext(sp.get('next') || '/')
+    } catch {}
+  }, [])
 
   const sendLink = async () => {
     setErr(null)
@@ -19,7 +29,7 @@ export default function LoginPage() {
       const emailRedirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo, shouldCreateUser: true }
+        options: { emailRedirectTo, shouldCreateUser: true },
       })
       if (error) throw error
       setSent(true)
