@@ -1,3 +1,4 @@
+// lib/supabase/client.ts
 'use client';
 
 import { createClient } from '@supabase/supabase-js';
@@ -8,8 +9,7 @@ export const supabase = createClient(
   {
     auth: {
       persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
+      storageKey: 'nadoo-auth',
     },
   }
 );
