@@ -11,10 +11,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         }}>
           <div style={{ fontWeight: 700 }}>Nadoo</div>
           <nav style={{ display: 'flex', gap: 14 }}>
-            <a href="/" style={{ textDecoration: 'none' }}>Главная</a>
-            <a href="/post-item" style={{ textDecoration: 'none' }}>Сдать в аренду</a>
-            <a href="/post-task" style={{ textDecoration: 'none' }}>Разместить задание</a>
-            <a href="/login" style={{ textDecoration: 'none' }}>Войти</a>
+            <a href="/">Главная</a>
+            <a href="/post-item">Сдать в аренду</a>
+            <a href="/post-task">Разместить задание</a>
+            <a href="/login">Войти</a>
           </nav>
         </header>
         <main style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>{children}</main>
