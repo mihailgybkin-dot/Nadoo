@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createSupabaseBrowser } from '@/lib/supabase';
+import { createSupabaseBrowser } from '@/lib/supabase-browser';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,12 +14,9 @@ export default function LoginPage() {
     setMsg(null);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${location.origin}/auth/callback`,
-      },
+      options: { emailRedirectTo: `${location.origin}/auth/callback` }
     });
-    if (error) setMsg(error.message);
-    else setMsg('Ссылка отправлена. Проверьте почту.');
+    setMsg(error ? error.message : 'Ссылка отправлена. Проверьте почту.');
   }
 
   return (
