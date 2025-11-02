@@ -1,11 +1,11 @@
 // app/page.tsx
-import dynamic from 'next/dynamic';
+import NextDynamic from 'next/dynamic';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// ВАЖНО: главную рендерим только на клиенте, чтобы исключить любые SSR-краши
-const HomeClient = dynamic(() => import('./_home/HomeClient'), {
+// Рендерим главную строго на клиенте, чтобы исключить SSR-ошибки
+const HomeClient = NextDynamic(() => import('./_home/HomeClient'), {
   ssr: false,
   loading: () => (
     <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
