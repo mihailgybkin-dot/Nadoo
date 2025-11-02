@@ -12,16 +12,14 @@ export default function LoginPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setStatus('sending')
-    setError(null)
+    setStatus('sending'); setError(null)
 
     try {
       const origin = window.location.origin
       const redirectTo = `${origin}/auth/callback?next=/profile`
-
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: redirectTo }
+        options: { emailRedirectTo: redirectTo },
       })
       if (error) throw error
       setStatus('sent')
@@ -37,26 +35,20 @@ export default function LoginPage() {
       <form onSubmit={onSubmit}>
         <label className="text-sm">Ваш e-mail</label>
         <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
           className="input"
           type="email"
           required
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e)=>setEmail(e.target.value)}
         />
-        <button className="btn" disabled={status === 'sending'} style={{marginTop: 12}}>
+        <button className="btn" disabled={status==='sending'} style={{marginTop: 12}}>
           Получить ссылку для входа
         </button>
       </form>
 
-      {status === 'sent' && (
-        <p style={{marginTop: 12}}>
-          ✅ Ссылка отправлена на <b>{email}</b>. Перейдите по ссылке из письма.
-        </p>
-      )}
-      {status === 'error' && (
-        <p style={{marginTop: 12, color: 'crimson'}}>Ошибка: {error}</p>
-      )}
+      {status==='sent' && <p style={{marginTop:12}}>✅ Ссылка отправлена на <b>{email}</b>.</p>}
+      {status==='error' && <p style={{marginTop:12, color:'crimson'}}>Ошибка: {error}</p>}
     </div>
   )
 }
