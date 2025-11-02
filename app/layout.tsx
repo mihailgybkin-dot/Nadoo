@@ -1,25 +1,13 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import Header from '../components/Header'
+// app/layout.tsx
+export const metadata = {
+  title: 'Nadoo',
+  description: 'Аренда вещей и задания рядом с вами',
+};
 
-const inter = Inter({ subsets: ['latin', 'cyrillic'] })
-
-export const metadata: Metadata = {
-  title: 'Nadoo — аренда вещей и задания',
-  description: 'Сервис аренды вещей и выполнения заданий рядом с вами. Безопасные сделки, прозрачные условия, удобная карта.',
-  icons: { icon: '/logo-nadoo.svg' }
-}
-
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru" suppressHydrationWarning>
-      <body className={inter.className}>
-        <Header />
-        {children}
-      </body>
+    <html lang="ru">
+      <body>{children}</body>
     </html>
-  )
+  );
 }
