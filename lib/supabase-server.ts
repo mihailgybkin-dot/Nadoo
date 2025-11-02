@@ -1,24 +1,32 @@
 // lib/supabase-server.ts
-// Серверный клиент Supabase без конфликтов типов Next 16.
+// Серверный клиент Supabase, совместимый с типами Next 16 (cookies() sync/Promise).
 
 import { cookies } from 'next/headers';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
+function getCookieStore(): any {
+  // Приводим к any и вызываем как функцию — покрывает обе сигнатуры.
+  try {
+    return (cookies as unknown as () => any)();
+  } catch {
+    // на всякий случай, если среда уже вернула объект
+    return cookies as unknown as any;
+  }
+}
+
 export function createSupabaseServer() {
-  // Не сохраняем cookies() в переменную с проблемным типом.
-  // Каждый вызов обращается к cookies() напрямую и приводится к any.
   const cookieAdapter = {
     get(name: string) {
-      // @ts-expect-error: в Next 16 тип cookies() может быть Promise — приводим к any
-      return (cookies() as any).get(name)?.value as string | undefined;
+      const store = getCookieStore();
+      return store?.get?.(name)?.value as string | undefined;
     },
     set(name: string, value: string, options: CookieOptions) {
-      // @ts-expect-error: см. примечание выше
-      (cookies() as any).set({ name, value, ...options });
+      const store = getCookieStore();
+      store?.set?.({ name, value, ...options });
     },
     remove(name: string, options: CookieOptions) {
-      // @ts-expect-error: см. примечание выше
-      (cookies() as any).set({ name, value: '', ...options, maxAge: 0 });
+      const store = getCookieStore();
+      store?.set?.({ name, value: '', ...options, maxAge: 0 });
     },
   };
 
